@@ -70,7 +70,8 @@ public:
 	void BeginAbilityEvent();
 
 	UFUNCTION(BlueprintCallable, meta=(DisplayName="End Ability"), Category="GMCAbilitySystem|Ability")
-	virtual void EndAbility();
+	// bCancelledUponInstantiation: Avoids calling EndAbilityEvent if the ability was cancelled before it was activated
+	virtual void EndAbility(bool bCancelledUponInstantiation = false);
 
 	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="End Ability"), Category="GMCAbilitySystem|Ability")
 	void EndAbilityEvent();
@@ -164,6 +165,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
 	// Tags that the owner must not have to activate ability. BeginAbility will not be called if the owner has these tags.
 	FGameplayTagContainer ActivationBlockedTags;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
+	// Ability with those tag will be ended when this ability is activated
+	FGameplayTagContainer CancelAbilityWithTag;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
+	// Does not allow this ability to be activated if another there is already an instance of this same ability.
+	bool bAllowMultipleInstances = true; // Set to true for retro-compatibility, but must be false for most abilities
 
 	UFUNCTION()
 	void ServerConfirm();

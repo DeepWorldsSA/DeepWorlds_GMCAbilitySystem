@@ -337,6 +337,23 @@ bool UGMC_AbilitySystemComponent::IsServerOnly() const
 	return true;
 }
 
+
+void UGMC_AbilitySystemComponent::EndAbilitiesWithTags(const FGameplayTagContainer& Tags) {
+	for (auto It = ActiveAbilities.CreateIterator(); It; ++It)
+	{
+		// If the contained ability is in the Ended state, delete it
+		if (It.Value()->AbilityState != EAbilityState::Ended)
+		{
+			if (It.Value()->AbilityTag.MatchesAny(Tags))
+			{
+				UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability %s has been cancelled by another ability"), *It.Value()->AbilityTag.ToString());
+				It.Value()->EndAbility();
+			}
+		}
+	}
+}
+
+
 void UGMC_AbilitySystemComponent::GenPredictionTick(float DeltaTime)
 {
 	bJustTeleported = false;
@@ -408,6 +425,8 @@ void UGMC_AbilitySystemComponent::PreLocalMoveExecution()
 		TaskData = QueuedTaskData.Pop();
 	}
 }
+
+
 
 void UGMC_AbilitySystemComponent::BeginPlay()
 {
@@ -905,6 +924,20 @@ float UGMC_AbilitySystemComponent::GetBaseAttributeValueByTag(FGameplayTag Attri
 	}
 	return -1.0f;
 }
+
+#pragma region ActiveAbilitiesHelpers
+
+bool UGMC_AbilitySystemComponent::IsAbilityActive(FGameplayTag AbilityTag) const {
+	for (const auto& ActiveAbility : ActiveAbilities) {
+		if (ActiveAbility.Value && ActiveAbility.Value->AbilityState != EAbilityState::Ended && ActiveAbility.Value->AbilityTag.MatchesTagExact(AbilityTag)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+#pragma endregion Active Abilities Helpers
 
 #pragma region ToStringHelpers
 
