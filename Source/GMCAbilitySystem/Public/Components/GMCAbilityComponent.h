@@ -62,6 +62,9 @@ public:
 	// Ability tags that the controller has 
 	FGameplayTagContainer GetGrantedAbilities() const { return GrantedAbilityTags; }
 
+	// End an abilities by its tags
+	void EndAbilitiesWithTags(const FGameplayTagContainer& Tags);
+
 	// Gameplay tags that the controller has
 	FGameplayTagContainer GetActiveTags() const { return ActiveTags; }
 
@@ -311,6 +314,14 @@ public:
 	virtual void PreLocalMoveExecution();
 
 #pragma endregion GMC
+
+#pragma region ActiveAbilitiesHelpers
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category="GMCAbilitySystem")
+	bool IsAbilityActive(FGameplayTag AbilityTag) const;
+	
+
+#pragma endregion
 
 #pragma region ToStringHelpers
 	/** Get all attributes in string format. Used in the gameplay debugger. */
