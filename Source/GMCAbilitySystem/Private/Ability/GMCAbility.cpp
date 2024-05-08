@@ -199,7 +199,6 @@ bool UGMCAbility::CheckActivationTags()
 	return true;
 }
 
-
 bool UGMCAbility::IsOnCooldown() const
 {
 	return OwnerAbilityComponent->GetCooldownForAbility(AbilityTag) > 0;
@@ -207,29 +206,19 @@ bool UGMCAbility::IsOnCooldown() const
 
 void UGMCAbility::BeginAbility()
 {
-	// Check concurrent instances if we doesn't allow them
-	if (!bAllowMultipleInstances && OwnerAbilityComponent->IsAbilityActive(AbilityTag))
-	{
-		UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability Activation for %s Stopped Because Multiple Instances isn't allowed"), *AbilityTag.ToString());
-		EndAbility(true);
-		return;
-	}
-	
 	// Check Activation Tags
 	if (!CheckActivationTags()){
 		UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability Activation for %s Stopped By Tags"), *AbilityTag.ToString());
-		EndAbility(true);
+		EndAbility();
 		return;
 	}
 
 	if (IsOnCooldown())
 	{
 		UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability Activation for %s Stopped By Cooldown"), *AbilityTag.ToString());
-		EndAbility(true);
+		EndAbility();
 		return;
 	}
-
-	
 
 	if (bApplyCooldownAtAbilityBegin)
 	{
@@ -239,14 +228,11 @@ void UGMCAbility::BeginAbility()
 	// Initialize Ability
 	AbilityState = EAbilityState::Initialized;
 
-	// End Abilities who must be ended when this ability is activated
-	OwnerAbilityComponent->EndAbilitiesWithTags(CancelAbilityWithTag);
-
 	// Execute BP Event
 	BeginAbilityEvent();
 }
 
-void UGMCAbility::EndAbility(bool bCancelledUponInstantiation)
+void UGMCAbility::EndAbility()
 {
 	for (const TPair<int, UGMCAbilityTaskBase* >& Task : RunningTasks)
 	{
@@ -255,11 +241,7 @@ void UGMCAbility::EndAbility(bool bCancelledUponInstantiation)
 	}
 	
 	AbilityState = EAbilityState::Ended;
-	
-	if (!bCancelledUponInstantiation)
-	{
-		EndAbilityEvent();
-	}
+	EndAbilityEvent();
 }
 
 AActor* UGMCAbility::GetOwnerActor() const

@@ -77,8 +77,7 @@ public:
 	void BeginAbilityEvent();
 
 	UFUNCTION(BlueprintCallable, meta=(DisplayName="End Ability"), Category="GMCAbilitySystem|Ability")
-	// bCancelledUponInstantiation: Avoids calling EndAbilityEvent if the ability was cancelled before it was activated
-	virtual void EndAbility(bool bCancelledUponInstantiation = false);
+	virtual void EndAbility();
 
 	UFUNCTION(BlueprintImplementableEvent, meta=(DisplayName="End Ability"), Category="GMCAbilitySystem|Ability")
 	void EndAbilityEvent();
@@ -184,14 +183,6 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
 	bool bActivateOnMovementTick = true; 
-
-	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
-	// Ability with those tag will be ended when this ability is activated
-	FGameplayTagContainer CancelAbilityWithTag;
-
-	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
-	// Does not allow this ability to be activated if another there is already an instance of this same ability.
-	bool bAllowMultipleInstances = true; // Set to true for retro-compatibility, but must be false for most abilities
 
 	UFUNCTION()
 	void ServerConfirm();
