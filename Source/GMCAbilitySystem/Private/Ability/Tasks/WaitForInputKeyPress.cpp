@@ -1,10 +1,7 @@
-﻿// © Deep Worlds SA
-#include "Ability/Tasks/WaitForInputKeyPress.h"
+﻿#include "Ability/Tasks/WaitForInputKeyPress.h"
 
 #include "EnhancedInputComponent.h"
-#include "SNegativeActionButton.h"
 #include "Components/GMCAbilityComponent.h"
-
 
 UGMCAbilityTask_WaitForInputKeyPress* UGMCAbilityTask_WaitForInputKeyPress::WaitForKeyPress(UGMCAbility* OwningAbility)
 {
@@ -25,12 +22,30 @@ void UGMCAbilityTask_WaitForInputKeyPress::Activate()
 	
 	if (Ability->AbilityInputAction != nullptr)
 	{
-		InputActionBinding = &GetEnhancedInputComponent()->BindActionValue(Ability->AbilityInputAction);
+		UEnhancedInputComponent* const InputComponent = GetEnhancedInputComponent();
+
+		const FEnhancedInputActionEventBinding& Binding = InputComponent->BindAction(
+			Ability->AbilityInputAction, ETriggerEvent::Started, this,
+			&UGMCAbilityTask_WaitForInputKeyPress::OnKeyPressed);
+		
+		InputBindingHandle = Binding.GetHandle();
 	}
 	else
 	{
 		ClientProgressTask();
 	}
+}
+
+void UGMCAbilityTask_WaitForInputKeyPress::OnKeyPressed(const FInputActionValue& InputActionValue)
+{
+	// Unbind from the input component so we don't fire multiple times.
+	if (UEnhancedInputComponent* InputComponent = GetValid(GetEnhancedInputComponent()))
+	{
+		InputComponent->RemoveActionBindingForHandle(InputBindingHandle);
+		InputBindingHandle = -1;
+	}
+
+	ClientProgressTask();
 }
 
 UEnhancedInputComponent* UGMCAbilityTask_WaitForInputKeyPress::GetEnhancedInputComponent() const
@@ -46,29 +61,6 @@ UEnhancedInputComponent* UGMCAbilityTask_WaitForInputKeyPress::GetEnhancedInputC
 	return nullptr;
 }
 
-void UGMCAbilityTask_WaitForInputKeyPress::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-	if (bTaskCompleted) {
-		return;
-	}
-	
-	if (AbilitySystemComponent->GetNetMode() == NM_DedicatedServer)
-	{
-		return;
-	}
-	
-	
-	if(InputActionBinding == nullptr || (InputActionBinding->GetValue().Get<bool>() && bFirstReleaseTriggerPass))
-	{
-		ClientProgressTask();
-	}
-	else if (!bFirstReleaseTriggerPass && !InputActionBinding->GetValue().Get<bool>())
-	{
-		bFirstReleaseTriggerPass = true;
-	}
-}
-
 void UGMCAbilityTask_WaitForInputKeyPress::OnTaskCompleted()
 {
 	EndTask();
@@ -79,6 +71,16 @@ void UGMCAbilityTask_WaitForInputKeyPress::OnTaskCompleted()
 void UGMCAbilityTask_WaitForInputKeyPress::OnDestroy(bool bInOwnerFinished)
 {
 	Super::OnDestroy(bInOwnerFinished);
+
+	// If we're still bound to the input component for some reason, we'll want to unbind.
+	if (InputBindingHandle != -1)
+	{
+		if (UEnhancedInputComponent* InputComponent = GetValid(GetEnhancedInputComponent()))
+		{
+			InputComponent->RemoveActionBindingForHandle(InputBindingHandle);
+			InputBindingHandle = -1;
+		}
+	}
 }
 
 void UGMCAbilityTask_WaitForInputKeyPress::ProgressTask(FInstancedStruct& TaskData)

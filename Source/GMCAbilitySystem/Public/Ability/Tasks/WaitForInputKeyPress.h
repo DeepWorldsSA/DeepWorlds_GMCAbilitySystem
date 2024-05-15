@@ -1,6 +1,4 @@
-﻿// © Deep Worlds SA
-
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Ability/Tasks/GMCAbilityTaskBase.h"
@@ -19,30 +17,30 @@ UCLASS()
 class GMCABILITYSYSTEM_API UGMCAbilityTask_WaitForInputKeyPress : public UGMCAbilityTaskBase {
 	GENERATED_BODY()
 
-	public:
+public:
+	
+	void OnTaskCompleted();
+	virtual void OnDestroy(bool bInOwnerFinished) override;
 
-		UFUNCTION()
-		virtual void Tick(float DeltaTime) override;
-
-		void OnTaskCompleted();
-		virtual void OnDestroy(bool bInOwnerFinished) override;
-
-		virtual void ProgressTask(FInstancedStruct& TaskData) override;
-		virtual void ClientProgressTask() override;
-		 
-		UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", HidePin = "OwningAbility", DefaultToSelf = "OwningAbility", BlueprintInternalUseOnly = "TRUE"), DisplayName="Wait For Input Key Press",Category = "GMCAbilitySystem/Tasks")
-		static UGMCAbilityTask_WaitForInputKeyPress* WaitForKeyPress(UGMCAbility* OwningAbility);
+	virtual void ProgressTask(FInstancedStruct& TaskData) override;
+	virtual void ClientProgressTask() override;
 	 
-		//Overriding BP async action base
-		virtual void Activate() override;
+	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", HidePin = "OwningAbility", DefaultToSelf = "OwningAbility", BlueprintInternalUseOnly = "TRUE"), DisplayName="Wait For Input Key Press",Category = "GMCAbilitySystem/Tasks")
+	static UGMCAbilityTask_WaitForInputKeyPress* WaitForKeyPress(UGMCAbility* OwningAbility);
 
-		UPROPERTY(BlueprintAssignable)
-		FAbilityTaskWaitForInputKeyPress Completed;
+	//Overriding BP async action base
+	virtual void Activate() override;
 
-	private:
-		FEnhancedInputActionValueBinding* InputActionBinding;
-		UEnhancedInputComponent* GetEnhancedInputComponent() const;
+	UPROPERTY(BlueprintAssignable)
+	FAbilityTaskWaitForInputKeyPress Completed;
 
-		// We need to release in first the key, to be able to cut it by the same key, so we store the first input here.
-		bool bFirstReleaseTriggerPass = false;
+protected:
+	
+	void OnKeyPressed(const FInputActionValue& InputActionValue);
+
+private:
+	
+	UEnhancedInputComponent* GetEnhancedInputComponent() const;
+
+	int64 InputBindingHandle = -1;
 };
