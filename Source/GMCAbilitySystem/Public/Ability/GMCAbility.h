@@ -189,9 +189,13 @@ public:
 	// Tags that the owner must not have to activate ability. BeginAbility will not be called if the owner has these tags.
 	FGameplayTagContainer ActivationBlockedTags;
 
-	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
+	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem", meta=(Categories="Ability"))
 	// Cancel Abilities with these tags when this ability is activated
 	FGameplayTagContainer CancelAbilitiesWithTag;
+
+	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem", meta=(Categories="Ability"))
+	// Ability Tag that the owner must not have to activate ability. BeginAbility will not be called if the owner has these abilities tags.
+	FGameplayTagContainer ActivationBlockedByActiveAbility;
 
 	/** 
 	 * If true, activate on movement tick, if false, activate on ancillary tick. Defaults to true.
@@ -212,11 +216,6 @@ public:
 	virtual void OnGameplayTaskInitialized(UGameplayTask& Task) override;
 	virtual void OnGameplayTaskActivated(UGameplayTask& Task) override;
 	virtual void OnGameplayTaskDeactivated(UGameplayTask& Task) override;
-	
-protected:
-
-	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
-	virtual UWorld* GetWorld() const override;
 	
 private:
 
