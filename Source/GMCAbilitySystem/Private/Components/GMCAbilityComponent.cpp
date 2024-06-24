@@ -171,17 +171,12 @@ void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsComb
 {
 
 	OnAncillaryTick.Broadcast(DeltaTime);
-
-	ClientHandlePendingEffect();
-	ServerHandlePendingEffect(DeltaTime);
 	
 	CheckActiveTagsChanged();
 	CheckAttributeChanged();
-
-	TickActiveEffects(DeltaTime);
+	
 	TickActiveCooldowns(DeltaTime);
 	TickAncillaryActiveAbilities(DeltaTime);
-	
 	
 	// Activate abilities from ancillary tick if they have bActivateOnMovementTick set to false
 	if (AbilityData.InputTag != FGameplayTag::EmptyTag)
@@ -200,7 +195,7 @@ TArray<UGMCAbilityEffect*> UGMC_AbilitySystemComponent::GetActivesEffectByTag(FG
 	TArray<UGMCAbilityEffect*> ActiveEffectsFound;
 
 	for (auto& EffectFound : ActiveEffects) {
-		if (EffectFound.Value && EffectFound.Value->EffectData.EffectTag.MatchesTag(GameplayTag)) {
+		if (EffectFound.Value && EffectFound.Value->EffectData.EffectTag.MatchesTag(GameplayTag) && EffectFound.Value->CurrentState != EGMASEffectState::Ended) {
 			ActiveEffectsFound.Add(EffectFound.Value);
 		}
 	}
@@ -211,7 +206,7 @@ TArray<UGMCAbilityEffect*> UGMC_AbilitySystemComponent::GetActivesEffectByTag(FG
 
 UGMCAbilityEffect* UGMC_AbilitySystemComponent::GetFirstActiveEffectByTag(FGameplayTag GameplayTag) const {
 	for (auto& EffectFound : ActiveEffects) {
-		if (EffectFound.Value && EffectFound.Value->EffectData.EffectTag.MatchesTag(GameplayTag)) {
+		if (EffectFound.Value && EffectFound.Value->EffectData.EffectTag.MatchesTag(GameplayTag) && EffectFound.Value->CurrentState != EGMASEffectState::Ended) {
 			return EffectFound.Value;
 		}
 	}
@@ -543,9 +538,12 @@ void UGMC_AbilitySystemComponent::GenPredictionTick(float DeltaTime)
 		}
 		StartingEffects.Empty();
 	}
+
+	ClientHandlePendingEffect();
+	ServerHandlePendingEffect(DeltaTime);
 	
 	TickActiveAbilities(DeltaTime);
-	
+	TickActiveEffects(DeltaTime);
 	// Abilities
 	CleanupStaleAbilities();
 	
@@ -878,14 +876,14 @@ void UGMC_AbilitySystemComponent::ServerHandlePendingEffect(float DeltaTime) {
 					FGMCAbilityEffectData EffectData = Data.InitializationData.IsValid() ?  Data.InitializationData : AbilityEffect->EffectData;
 					UGMCAbilityEffect* FX = ApplyAbilityEffect(AbilityEffect, EffectData);
 					if (Wrapper.ClientGraceTimeRemaining <= 0.f) {
-						UE_LOG(LogGMCAbilitySystem, Log, TEXT("Client Add Effect `%s ` Missed Grace time, Force application : id: %d"), *GetNameSafe(Data.EffectClass), FX->EffectData.EffectID);
+						UE_LOG(LogGMCAbilitySystem, Warning, TEXT("Client Add Effect `%s ` Missed Grace time, Force application : id: %d"), *GetNameSafe(Data.EffectClass), FX->EffectData.EffectID);
 					}
 				} break;
 				case EGMC_RemoveEffect: {
 					const FGMCOuterEffectRemove& Data = Wrapper.OuterApplicationData.Get<FGMCOuterEffectRemove>();
 					RemoveEffectById(Data.Ids);
 					if (Wrapper.ClientGraceTimeRemaining <= 0.f) {
-						UE_LOG(LogGMCAbilitySystem, Log, TEXT("Client Remove Effect Missed Grace time, Force remove"));
+						UE_LOG(LogGMCAbilitySystem, Warning, TEXT("Client Remove Effect Missed Grace time, Force remove"));
 					}
 				} break;
 			}

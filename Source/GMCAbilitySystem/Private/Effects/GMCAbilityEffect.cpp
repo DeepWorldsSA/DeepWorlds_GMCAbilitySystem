@@ -284,6 +284,7 @@ void UGMCAbilityEffect::CheckState()
 			}
 			break;
 		case EGMASEffectState::Ended:
+				EndEffect();
 			break;
 	default: break;
 	}

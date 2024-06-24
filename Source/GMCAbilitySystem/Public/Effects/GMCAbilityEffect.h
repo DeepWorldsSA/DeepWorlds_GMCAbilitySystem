@@ -165,7 +165,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
 	void InitializeEffect(FGMCAbilityEffectData InitializationData);
-	
+
+	// End effect should be handled in the prediction, prefere calling bCompleted = true
 	void EndEffect();
 	
 	virtual void Tick(float DeltaTime);
