@@ -30,6 +30,10 @@ void UGMCAbilityTaskBase::RegisterTask(UGMCAbilityTaskBase* Task)
 
 void UGMCAbilityTaskBase::Tick(float DeltaTime)
 {
+	// Locally controlled server pawns don't need to send heartbeats
+	if (AbilitySystemComponent->GMCMovementComponent->IsLocallyControlledServerPawn()) return;
+	
+	// If not the server version of the component, send heartbeats
 	if (AbilitySystemComponent->GetNetMode() != NM_DedicatedServer)
 	{
 		if (ClientLastHeartbeatSentTime + HeartbeatInterval < AbilitySystemComponent->ActionTimer)
