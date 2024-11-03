@@ -54,10 +54,8 @@ void UGMCAbilityEffect::InitializeEffect(FGMCAbilityEffectData InitializationDat
 void UGMCAbilityEffect::StartEffect()
 {
 	// Ensure tag requirements are met before applying the effect
-	if( ( EffectData.ApplicationMustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.ApplicationMustHaveTags) ) ||
-	DoesOwnerHaveTagFromContainer(EffectData.ApplicationMustNotHaveTags) ||
-	( EffectData.MustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.MustHaveTags) ) ||
-	DoesOwnerHaveTagFromContainer(EffectData.MustNotHaveTags) )
+	if( ( EffectData.MustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.MustHaveTags) ) ||
+		DoesOwnerHaveTagFromContainer(EffectData.MustNotHaveTags) )
 	{
 		EndEffect();
 		return;
@@ -231,9 +229,9 @@ void UGMCAbilityEffect::AddTagsToOwner()
 
 void UGMCAbilityEffect::RemoveTagsFromOwner(bool bPreserveOnMultipleInstances)
 {
-
+	
 	if (bPreserveOnMultipleInstances && EffectData.EffectTag.IsValid()) {
-		TArray<UGMCAbilityEffect*> ActiveEffect = OwnerAbilityComponent->GetActivesEffectByTag(EffectData.EffectTag);
+		TArray<UGMCAbilityEffect*> ActiveEffect = OwnerAbilityComponent->GetActiveEffectsByTag(EffectData.EffectTag);
 		
 		if (ActiveEffect.Num() > 1) {
 			return;
