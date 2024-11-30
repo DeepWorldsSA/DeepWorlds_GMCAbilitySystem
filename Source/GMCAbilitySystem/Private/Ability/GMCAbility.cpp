@@ -59,18 +59,20 @@ void UGMCAbility::AncillaryTick(float DeltaTime){
 
 void UGMCAbility::TickTasks(float DeltaTime)
 {
-	for (const TPair<int, UGMCAbilityTaskBase* >& Task : RunningTasks)
+	for (int i=0; i < RunningTasks.Num(); i++)
 	{
-		if (Task.Value == nullptr) {continue;}
-		Task.Value->Tick(DeltaTime);
+		UGMCAbilityTaskBase* Task = RunningTasks[i];
+		if (Task == nullptr) {continue;}
+		Task->Tick(DeltaTime);
 	}
 }
 
 void UGMCAbility::AncillaryTickTasks(float DeltaTime){
-	for (const TPair<int, UGMCAbilityTaskBase* >& Task : RunningTasks)
+	for (int i=0; i < RunningTasks.Num(); i++)
 	{
-		if (Task.Value == nullptr) {continue;}
-		Task.Value->AncillaryTick(DeltaTime);
+		UGMCAbilityTaskBase* Task = RunningTasks[i];
+		if (Task == nullptr) {continue;}
+		Task->AncillaryTick(DeltaTime);
 	}
 }
 
