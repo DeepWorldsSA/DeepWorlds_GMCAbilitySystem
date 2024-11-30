@@ -625,9 +625,8 @@ private:
 
 	void RemoveEffectHandle(int EffectHandle);
 	
-	// doesn't work ATM.
 	UPROPERTY(BlueprintReadOnly, Category = "GMCAbilitySystem", meta=(AllowPrivateAccess="true"))
-	bool bInGMCTime = false;
+	bool bInAncillaryTick = false;
 
 	void ServerHandlePendingEffect(float DeltaTime);
 	void ServerHandlePredictedPendingEffect(float DeltaTime);

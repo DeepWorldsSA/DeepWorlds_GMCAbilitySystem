@@ -154,6 +154,9 @@ void UGMC_AbilitySystemComponent::BindReplicationData()
 }
 void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsCombinedClientMove)
 {
+	// Caution if you override Ancillarytick, this value should wrap up the override.
+	bInAncillaryTick = true;
+	
 	OnAncillaryTick.Broadcast(DeltaTime);
 
 	ClientHandlePendingEffect();
@@ -165,7 +168,6 @@ void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsComb
 	TickActiveEffects(DeltaTime);
 	TickActiveCooldowns(DeltaTime);
 	TickAncillaryActiveAbilities(DeltaTime);
-	
 
 	// Check if we have a valid operation
 	TGMASBoundQueueOperation<UGMCAbility, FGMCAbilityData> Operation;
@@ -178,7 +180,8 @@ void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsComb
 	
 	ClearAbilityAndTaskData();
 	QueuedEffectOperations_ClientAuth.ClearCurrentOperation();
-	bInGMCTime = false;
+	
+	bInAncillaryTick = false;
 }
 
 
@@ -1482,7 +1485,7 @@ bool UGMC_AbilitySystemComponent::ApplyAbilityEffect(TSubclassOf<UGMCAbilityEffe
 	{
 	case EGMCAbilityEffectQueueType::Predicted:
 		{
-			if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone)
+			if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone && !bInAncillaryTick)
 			{
 				UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted to apply predicted effect %d of type %s outside of a GMC move!"),
 					*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), EffectID, *EffectClass->GetName())
@@ -1497,7 +1500,7 @@ bool UGMC_AbilitySystemComponent::ApplyAbilityEffect(TSubclassOf<UGMCAbilityEffe
 		}
 	case EGMCAbilityEffectQueueType::PredictedQueued:
 		{
-			if (GMCMovementComponent->IsExecutingMove())
+			if (GMCMovementComponent->IsExecutingMove() || bInAncillaryTick)
 			{
 				// We're in a move context, just add it directly rather than queuing.
 				OutEffect = ProcessEffectOperation(Operation);
@@ -1692,7 +1695,7 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 	switch(QueueType) {
 		case EGMCAbilityEffectQueueType::Predicted:
 			{
-				if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone)
+				if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone && !bInAncillaryTick)
 				{
 					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle!"),
 						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName())
@@ -1710,7 +1713,7 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 		case EGMCAbilityEffectQueueType::PredictedQueued:
 			{
 				// If in move, silenttly remove the effect as predicted
-				if (GMCMovementComponent->IsExecutingMove())
+				if (GMCMovementComponent->IsExecutingMove() || bInAncillaryTick)
 				{
 					for (auto& Effect : ActiveEffects) {
 						if (Ids.Contains(Effect.Key)) {
@@ -1723,7 +1726,7 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 					TGMASBoundQueueOperation<UGMCAbilityEffect, FGMCAbilityEffectData> Operation;
 					FGMCAbilityEffectData Data;
 					QueuedEffectOperations_ClientAuth.MakeOperation(Operation, EGMASBoundQueueOperationType::Remove, FGameplayTag::EmptyTag, Data, Ids);
-					QueuedEffectOperations_ClientAuth.QueuePreparedOperation(Operation, false
+					QueuedEffectOperations_ClientAuth.QueuePreparedOperation(Operation, false);
 				}
 				return true;
 			}	
