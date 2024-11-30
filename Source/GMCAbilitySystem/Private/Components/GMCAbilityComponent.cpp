@@ -165,7 +165,7 @@ void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsComb
 	CheckActiveTagsChanged();
 	CheckAttributeChanged();
 
-	TickActiveEffects(DeltaTime);
+	
 	TickActiveCooldowns(DeltaTime);
 	TickAncillaryActiveAbilities(DeltaTime);
 
@@ -521,6 +521,7 @@ void UGMC_AbilitySystemComponent::GenPredictionTick(float DeltaTime)
 	ApplyStartingEffects();
 	
 	TickActiveAbilities(DeltaTime);
+	TickActiveEffects(DeltaTime);
 	
 	// Abilities
 	CleanupStaleAbilities();
