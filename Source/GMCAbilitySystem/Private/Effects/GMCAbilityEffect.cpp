@@ -163,7 +163,7 @@ void UGMCAbilityEffect::Tick(float DeltaTime)
 	TickEvent(DeltaTime);
 	
 	// Ensure tag requirements are met before applying the effect
-	if( ( EffectData.MustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.MustHaveTags) ) ||
+	if( (EffectData.MustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.MustHaveTags) ) ||
 		DoesOwnerHaveTagFromContainer(EffectData.MustNotHaveTags) )
 	{
 		EndEffect();

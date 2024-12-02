@@ -740,7 +740,7 @@ void UGMC_AbilitySystemComponent::TickActiveEffects(float DeltaTime)
 	for (const TPair<int, UGMCAbilityEffect*>& Effect : ActiveEffects)
 	{
 		
-		if (!IsValid(Effect.Value)) {
+		if (!Effect.Value->IsValidLowLevel()) {
 			UE_LOG(LogGMCAbilitySystem, Error, TEXT("Active Effect id %d is null or pending kill, removing from the list."), Effect.Key);
 			CompletedActiveEffects.Push(Effect.Key);
 			continue;	
