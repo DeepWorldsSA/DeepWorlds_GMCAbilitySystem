@@ -309,12 +309,12 @@ void UGMC_AbilitySystemComponent::TryActivateAbilitiesByInputTag(const FGameplay
 		const UGMCAbility* AbilityCDO = ActivatedAbility->GetDefaultObject<UGMCAbility>();
 		if(AbilityCDO && bFromMovementTick == AbilityCDO->bActivateOnMovementTick){
 			UE_LOG(LogGMCAbilitySystem, VeryVerbose, TEXT("Trying to Activate Ability: %s from %s"), *GetNameSafe(ActivatedAbility), bFromMovementTick ? TEXT("Movement") : TEXT("Ancillary"));
-			TryActivateAbility(ActivatedAbility, InputAction);
+			TryActivateAbility(ActivatedAbility, InputAction, InputTag);
 		}
 	}
 }
 
-bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbility> ActivatedAbility, const UInputAction* InputAction)
+bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbility> ActivatedAbility, const UInputAction* InputAction, const FGameplayTag ActivationTag)
 {
 	
 	if (ActivatedAbility == nullptr) return false;
@@ -350,6 +350,7 @@ bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbili
 	
 	UGMCAbility* Ability = NewObject<UGMCAbility>(this, ActivatedAbility);
 	Ability->AbilityData = AbilityData;
+	Ability->AbilityData.InputTag = ActivationTag;
 	
 	Ability->Execute(this, AbilityID, InputAction);
 	ActiveAbilities.Add(AbilityID, Ability);
