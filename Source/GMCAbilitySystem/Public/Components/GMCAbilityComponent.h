@@ -114,8 +114,9 @@ public:
 	TMap<int, UGMCAbilityEffect*> GetActiveEffects() const { return ActiveEffects; }
 
 	// Return active Effect with tag
+	// Match exact doesn't look for depth in the tag, it will only match the exact tag
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="GMAS|Abilities")
-	TArray<UGMCAbilityEffect*> GetActiveEffectsByTag(FGameplayTag GameplayTag) const;
+	TArray<UGMCAbilityEffect*> GetActiveEffectsByTag(FGameplayTag GameplayTag, bool bMatchExact = true) const;
 
 	// Get the first active effect with the Effecttag
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="GMAS|Abilities")
