@@ -78,6 +78,7 @@ void UGMCAbility::AncillaryTickTasks(float DeltaTime){
 
 void UGMCAbility::Execute(UGMC_AbilitySystemComponent* InAbilityComponent, int InAbilityID, const UInputAction* InputAction)
 {
+	// TODO : Add input action tag here to avoid going by the old FGMCAbilityData struct
 	this->AbilityInputAction = InputAction;
 	this->AbilityID = InAbilityID;
 	this->OwnerAbilityComponent = InAbilityComponent;

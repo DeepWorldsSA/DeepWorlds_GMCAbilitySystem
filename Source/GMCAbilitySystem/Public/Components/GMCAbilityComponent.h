@@ -114,8 +114,9 @@ public:
 	TMap<int, UGMCAbilityEffect*> GetActiveEffects() const { return ActiveEffects; }
 
 	// Return active Effect with tag
+	// Match exact doesn't look for depth in the tag, it will only match the exact tag
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="GMAS|Abilities")
-	TArray<UGMCAbilityEffect*> GetActiveEffectsByTag(FGameplayTag GameplayTag) const;
+	TArray<UGMCAbilityEffect*> GetActiveEffectsByTag(FGameplayTag GameplayTag, bool bMatchExact = true) const;
 
 	// Get the first active effect with the Effecttag
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category="GMAS|Abilities")
@@ -126,12 +127,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="GMAS|Abilities")
 	void RemoveAbilityMapData(UGMCAbilityMapData* AbilityMapData);
-
-	UFUNCTION(BlueprintCallable, Category="GMAS|Abilities")
-	void AddStartingEffects(TArray<TSubclassOf<UGMCAbilityEffect>> EffectsToAdd);
-
-	UFUNCTION(BlueprintCallable, Category="GMAS|Abilities")
-	void RemoveStartingEffects(TArray<TSubclassOf<UGMCAbilityEffect>> EffectsToRemove);
 
 	// Add an ability to the GrantedAbilities array
 	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
@@ -184,7 +179,7 @@ public:
 	void TryActivateAbilitiesByInputTag(const FGameplayTag& InputTag, const UInputAction* InputAction = nullptr, bool bFromMovementTick=true);
 	
 	// Do not call directly on client, go through QueueAbility. Can be used to call server-side abilities (like AI).
-	bool TryActivateAbility(TSubclassOf<UGMCAbility> ActivatedAbility, const UInputAction* InputAction = nullptr);
+	bool TryActivateAbility(TSubclassOf<UGMCAbility> ActivatedAbility, const UInputAction* InputAction = nullptr, const FGameplayTag ActivationTag = FGameplayTag::EmptyTag);
 	
 	// Queue an ability to be executed
 	UFUNCTION(BlueprintCallable, DisplayName="Activate Ability", Category="GMAS|Abilities")
@@ -631,9 +626,8 @@ private:
 
 	void RemoveEffectHandle(int EffectHandle);
 	
-	// doesn't work ATM.
 	UPROPERTY(BlueprintReadOnly, Category = "GMCAbilitySystem", meta=(AllowPrivateAccess="true"))
-	bool bInGMCTime = false;
+	bool bInAncillaryTick = false;
 
 	void ServerHandlePendingEffect(float DeltaTime);
 	void ServerHandlePredictedPendingEffect(float DeltaTime);

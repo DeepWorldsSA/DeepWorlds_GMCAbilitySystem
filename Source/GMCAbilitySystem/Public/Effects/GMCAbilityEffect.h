@@ -177,9 +177,9 @@ public:
 	FGMCAbilityEffectData EffectData;
 
 	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
-	virtual void InitializeEffect(FGMCAbilityEffectData InitializationData);
+	void InitializeEffect(FGMCAbilityEffectData InitializationData);
 	
-	virtual void EndEffect();
+	void EndEffect();
 
 	virtual void BeginDestroy() override;
 	
@@ -205,7 +205,7 @@ public:
 	UFUNCTION(BlueprintNativeEvent, meta=(DisplayName="Dynamic Condition"), Category="GMCAbilitySystem")
 	bool AttributeDynamicCondition() const;
 	
-	virtual void PeriodTick();
+	void PeriodTick();
 	
 	void UpdateState(EGMASEffectState State, bool Force=false);
 
@@ -224,6 +224,14 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "GMCAbilitySystem")
 	UGMC_AbilitySystemComponent* OwnerAbilityComponent;
 
+private:
+	bool bHasStarted;
+
+	// Used for calculating when to tick Period effects
+	float PrevPeriodMod = 0;
+	
+	void CheckState();
+
 	// Tags
 	void AddTagsToOwner();
 
@@ -240,15 +248,10 @@ protected:
 	bool DuplicateEffectAlreadyApplied();
 
 	// Apply the things that should happen as soon as an effect starts. Tags, instant effects, etc.
-	virtual void StartEffect();
+	void StartEffect();
 
-	bool bHasStarted;
-
-private:
-	// Used for calculating when to tick Period effects
-	float PrevPeriodMod = 0;
 	
-	void CheckState();
+	
 
 public:
 	FString ToString() {

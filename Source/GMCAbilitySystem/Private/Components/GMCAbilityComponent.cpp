@@ -46,22 +46,12 @@ FDelegateHandle UGMC_AbilitySystemComponent::AddFilteredTagChangeDelegate(const 
 void UGMC_AbilitySystemComponent::RemoveFilteredTagChangeDelegate(const FGameplayTagContainer& Tags,
 	FDelegateHandle Handle)
 {
-	if (!Handle.IsValid())
-	{
-		UE_LOG(LogGMCAbilitySystem, Warning, TEXT("Passed an invalid delegate to unbind for tag changes on %s"), *Tags.ToString())
-		return;
-	}
-	
 	for (int32 Index = FilteredTagDelegates.Num() - 1; Index >= 0; --Index)
 	{
 		TPair<FGameplayTagContainer, FGameplayTagFilteredMulticastDelegate>& SearchPair = FilteredTagDelegates[Index];
 		if (SearchPair.Key == Tags)
 		{
-			if (!SearchPair.Value.Remove(Handle))
-			{
-				UE_LOG(LogGMCAbilitySystem, Warning, TEXT("Unable to unbind a tag change delegate for %s"), *Tags.ToString())
-			}
-			
+			SearchPair.Value.Remove(Handle);
 			if (!SearchPair.Value.IsBound())
 			{
 				FilteredTagDelegates.RemoveAt(Index);
@@ -164,6 +154,9 @@ void UGMC_AbilitySystemComponent::BindReplicationData()
 }
 void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsCombinedClientMove)
 {
+	// Caution if you override Ancillarytick, this value should wrap up the override.
+	bInAncillaryTick = true;
+	
 	OnAncillaryTick.Broadcast(DeltaTime);
 
 	ClientHandlePendingEffect();
@@ -172,10 +165,9 @@ void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsComb
 	CheckActiveTagsChanged();
 	CheckAttributeChanged();
 
-	TickActiveEffects(DeltaTime);
+	
 	TickActiveCooldowns(DeltaTime);
 	TickAncillaryActiveAbilities(DeltaTime);
-	
 
 	// Check if we have a valid operation
 	TGMASBoundQueueOperation<UGMCAbility, FGMCAbilityData> Operation;
@@ -188,16 +180,17 @@ void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsComb
 	
 	ClearAbilityAndTaskData();
 	QueuedEffectOperations_ClientAuth.ClearCurrentOperation();
-	bInGMCTime = false;
+	
+	bInAncillaryTick = false;
 }
 
 
-TArray<UGMCAbilityEffect*> UGMC_AbilitySystemComponent::GetActiveEffectsByTag(FGameplayTag GameplayTag) const
+TArray<UGMCAbilityEffect*> UGMC_AbilitySystemComponent::GetActiveEffectsByTag(FGameplayTag GameplayTag, bool bMatchExact) const
 {
 	TArray<UGMCAbilityEffect*> ActiveEffectsFound;
 
 	for (const TTuple<int, UGMCAbilityEffect*>& EffectFound : ActiveEffects) {
-		if (IsValid(EffectFound.Value) && EffectFound.Value->EffectData.EffectTag.MatchesTag(GameplayTag)) {
+		if (IsValid(EffectFound.Value) && bMatchExact ? EffectFound.Value->EffectData.EffectTag.MatchesTagExact(GameplayTag) : EffectFound.Value->EffectData.EffectTag.MatchesTag(GameplayTag)) {
 			ActiveEffectsFound.Add(EffectFound.Value);
 		}
 	}
@@ -231,22 +224,6 @@ void UGMC_AbilitySystemComponent::RemoveAbilityMapData(UGMCAbilityMapData* Abili
 	for (const FAbilityMapData& Data : AbilityMapData->GetAbilityMapData())
 	{
 		RemoveAbilityMapData(Data);
-	}
-}
-
-void UGMC_AbilitySystemComponent::AddStartingEffects(TArray<TSubclassOf<UGMCAbilityEffect>> EffectsToAdd)
-{
-	for (const TSubclassOf<UGMCAbilityEffect> Effect : EffectsToAdd)
-	{
-		StartingEffects.AddUnique(Effect);
-	}
-}
-
-void UGMC_AbilitySystemComponent::RemoveStartingEffects(TArray<TSubclassOf<UGMCAbilityEffect>> EffectsToRemove)
-{
-	for (const TSubclassOf<UGMCAbilityEffect> Effect : EffectsToRemove)
-	{
-		StartingEffects.Remove(Effect);
 	}
 }
 
@@ -332,12 +309,12 @@ void UGMC_AbilitySystemComponent::TryActivateAbilitiesByInputTag(const FGameplay
 		const UGMCAbility* AbilityCDO = ActivatedAbility->GetDefaultObject<UGMCAbility>();
 		if(AbilityCDO && bFromMovementTick == AbilityCDO->bActivateOnMovementTick){
 			UE_LOG(LogGMCAbilitySystem, VeryVerbose, TEXT("Trying to Activate Ability: %s from %s"), *GetNameSafe(ActivatedAbility), bFromMovementTick ? TEXT("Movement") : TEXT("Ancillary"));
-			TryActivateAbility(ActivatedAbility, InputAction);
+			TryActivateAbility(ActivatedAbility, InputAction, InputTag);
 		}
 	}
 }
 
-bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbility> ActivatedAbility, const UInputAction* InputAction)
+bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbility> ActivatedAbility, const UInputAction* InputAction, const FGameplayTag ActivationTag)
 {
 	
 	if (ActivatedAbility == nullptr) return false;
@@ -363,12 +340,6 @@ bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbili
 		return false;
 	}
 
-	// Check Activation Tags
-	if (!CheckActivationTags(AbilityCDO)){
-		UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability Activation for %s Stopped By Tags"), *GetNameSafe(ActivatedAbility));
-		return false;
-	}
-
 	// If multiple abilities are activated on the same frame, add 1 to the ID
 	// This should never actually happen as abilities get queued
 	while (ActiveAbilities.Contains(AbilityID)){
@@ -379,6 +350,7 @@ bool UGMC_AbilitySystemComponent::TryActivateAbility(const TSubclassOf<UGMCAbili
 	
 	UGMCAbility* Ability = NewObject<UGMCAbility>(this, ActivatedAbility);
 	Ability->AbilityData = AbilityData;
+	Ability->AbilityData.InputTag = ActivationTag;
 	
 	Ability->Execute(this, AbilityID, InputAction);
 	ActiveAbilities.Add(AbilityID, Ability);
@@ -550,6 +522,7 @@ void UGMC_AbilitySystemComponent::GenPredictionTick(float DeltaTime)
 	ApplyStartingEffects();
 	
 	TickActiveAbilities(DeltaTime);
+	TickActiveEffects(DeltaTime);
 	
 	// Abilities
 	CleanupStaleAbilities();
@@ -658,7 +631,6 @@ void UGMC_AbilitySystemComponent::InstantiateAttributes()
 		Attribute.CalculateValue();
 	}
 
-	// We need to be non-const to ensure we can mark the item dirty.
 	for (FAttribute& Attribute : UnBoundAttributes.Items)
 	{
 		Attribute.CalculateValue();
@@ -769,7 +741,7 @@ void UGMC_AbilitySystemComponent::TickActiveEffects(float DeltaTime)
 	for (const TPair<int, UGMCAbilityEffect*>& Effect : ActiveEffects)
 	{
 		
-		if (!IsValid(Effect.Value)) {
+		if (!Effect.Value->IsValidLowLevel()) {
 			UE_LOG(LogGMCAbilitySystem, Error, TEXT("Active Effect id %d is null or pending kill, removing from the list."), Effect.Key);
 			CompletedActiveEffects.Push(Effect.Key);
 			continue;	
@@ -937,7 +909,9 @@ void UGMC_AbilitySystemComponent::ServerHandlePredictedPendingEffect(float Delta
 
 void UGMC_AbilitySystemComponent::ClientHandlePendingEffect() {
 
-    // Handle our RPC effect operations. MoveCycle operations will be sent via RPC
+	printf("ClientHandlePendingEffect");
+
+// Handle our RPC effect operations. MoveCycle operations will be sent via RPC
     // just like the Outer ones, but will be preserved in the movement history.
     auto RPCOperations = QueuedEffectOperations.GetQueuedRPCOperations();
     for (auto& Operation : RPCOperations) {
@@ -1048,7 +1022,7 @@ void UGMC_AbilitySystemComponent::ClearAbilityAndTaskData() {
 
 void UGMC_AbilitySystemComponent::SendTaskDataToActiveAbility(bool bFromMovement) {
 	
-	const FGMCAbilityTaskData TaskDataFromInstance = TaskData.Get<FGMCAbilityTaskData>();
+	const FGMCAbilityTaskData TaskDataFromInstance = TaskData.IsValid() ? TaskData.Get<FGMCAbilityTaskData>() : FGMCAbilityTaskData{};
 	if (TaskDataFromInstance != FGMCAbilityTaskData{} && /*safety check*/ TaskDataFromInstance.TaskID >= 0)
 	{
 		if (ActiveAbilities.Contains(TaskDataFromInstance.AbilityID) && ActiveAbilities[TaskDataFromInstance.AbilityID]->bActivateOnMovementTick == bFromMovement)
@@ -1513,7 +1487,7 @@ bool UGMC_AbilitySystemComponent::ApplyAbilityEffect(TSubclassOf<UGMCAbilityEffe
 	{
 	case EGMCAbilityEffectQueueType::Predicted:
 		{
-			if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone)
+			if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone && !bInAncillaryTick)
 			{
 				UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted to apply predicted effect %d of type %s outside of a GMC move!"),
 					*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), EffectID, *EffectClass->GetName())
@@ -1528,7 +1502,7 @@ bool UGMC_AbilitySystemComponent::ApplyAbilityEffect(TSubclassOf<UGMCAbilityEffe
 		}
 	case EGMCAbilityEffectQueueType::PredictedQueued:
 		{
-			if (GMCMovementComponent->IsExecutingMove())
+			if (GMCMovementComponent->IsExecutingMove() || bInAncillaryTick)
 			{
 				// We're in a move context, just add it directly rather than queuing.
 				OutEffect = ProcessEffectOperation(Operation);
@@ -1695,6 +1669,7 @@ int32 UGMC_AbilitySystemComponent::RemoveEffectByTagSafe(FGameplayTag InEffectTa
 	}
 
 	TArray<int> EffectsToRemove = EffectsMatchingTag(InEffectTag, NumToRemove);
+	
 
 	if (EffectsToRemove.Num() > 0)
 	{
@@ -1719,69 +1694,95 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 		}
 	}
 
-	switch(QueueType)
-	{
-	case EGMCAbilityEffectQueueType::Predicted:
-		{
-			if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone)
+	switch(QueueType) {
+		case EGMCAbilityEffectQueueType::Predicted:
 			{
-				UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle!"),
-					*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName())
-				return false;
-			}
-			
-			for (auto& Effect : ActiveEffects) {
-				if (Ids.Contains(Effect.Key)) {
-					RemoveActiveAbilityEffect(Effect.Value);
-				}
-			}
-
-			return true;			
-		}
-	case EGMCAbilityEffectQueueType::PredictedQueued:
-	case EGMCAbilityEffectQueueType::ClientAuth:
-		{
-			if (QueueType == EGMCAbilityEffectQueueType::ClientAuth)
-			{
-				if (GetNetMode() != NM_Standalone && (HasAuthority() && !GMCMovementComponent->IsLocallyControlledServerPawn()))
+				if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone && !bInAncillaryTick)
 				{
-					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server!"),
+					ensureMsgf(false, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle!"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName());
+					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle!"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName())
+					return false;
+				}
+				
+				for (auto& Effect : ActiveEffects) {
+					if (Ids.Contains(Effect.Key)) {
+						RemoveActiveAbilityEffect(Effect.Value);
+					}
+				}
+
+				return true;			
+			}
+		case EGMCAbilityEffectQueueType::PredictedQueued:
+			{
+				// If in move, silenttly remove the effect as predicted
+				if (GMCMovementComponent->IsExecutingMove() || bInAncillaryTick)
+				{
+					for (auto& Effect : ActiveEffects) {
+						if (Ids.Contains(Effect.Key)) {
+							RemoveActiveAbilityEffect(Effect.Value);
+						}
+					}
+					
+				}
+				else {
+					TGMASBoundQueueOperation<UGMCAbilityEffect, FGMCAbilityEffectData> Operation;
+					FGMCAbilityEffectData Data;
+					QueuedEffectOperations_ClientAuth.MakeOperation(Operation, EGMASBoundQueueOperationType::Remove, FGameplayTag::EmptyTag, Data, Ids);
+					QueuedEffectOperations_ClientAuth.QueuePreparedOperation(Operation, false);
+				}
+				return true;
+			}	
+		case EGMCAbilityEffectQueueType::ClientAuth:
+			{
+				if (QueueType == EGMCAbilityEffectQueueType::ClientAuth)
+				{
+					if (GetNetMode() != NM_Standalone && (HasAuthority() && !GMCMovementComponent->IsLocallyControlledServerPawn()))
+					{
+						ensureMsgf(false, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server!"),
+							*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num());
+						UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server!"),
+							*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num())
+						return false;
+					}
+				}
+				
+				TGMASBoundQueueOperation<UGMCAbilityEffect, FGMCAbilityEffectData> Operation;
+				FGMCAbilityEffectData Data;
+				QueuedEffectOperations_ClientAuth.MakeOperation(Operation, EGMASBoundQueueOperationType::Remove, FGameplayTag::EmptyTag, Data, Ids);
+				QueuedEffectOperations_ClientAuth.QueuePreparedOperation(Operation, QueueType == EGMCAbilityEffectQueueType::ClientAuth);
+				return true;
+			}
+		case EGMCAbilityEffectQueueType::ServerAuthMove:
+		case EGMCAbilityEffectQueueType::ServerAuth:
+			{
+				if (!HasAuthority())
+				{
+					ensureMsgf(false, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client!"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num());
+					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client!"),
 						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num())
 					return false;
 				}
-			}
+				
+				TGMASBoundQueueOperation<UGMCAbilityEffect, FGMCAbilityEffectData> Operation;
+				FGMCAbilityEffectData Data;
+				QueuedEffectOperations.MakeOperation(Operation, EGMASBoundQueueOperationType::Remove, FGameplayTag::EmptyTag, Data, Ids);
+				QueuedEffectOperations.QueuePreparedOperation(Operation, QueueType == EGMCAbilityEffectQueueType::ServerAuthMove);
+				
+				if (QueueType == EGMCAbilityEffectQueueType::ServerAuth)
+				{
+					// Send the operation over to our client via standard RPC.
+					ClientQueueEffectOperation(Operation);
+				}
 			
-			TGMASBoundQueueOperation<UGMCAbilityEffect, FGMCAbilityEffectData> Operation;
-			FGMCAbilityEffectData Data;
-			QueuedEffectOperations_ClientAuth.MakeOperation(Operation, EGMASBoundQueueOperationType::Remove, FGameplayTag::EmptyTag, Data, Ids);
-			QueuedEffectOperations_ClientAuth.QueuePreparedOperation(Operation, QueueType == EGMCAbilityEffectQueueType::ClientAuth);
-			return true;
-		}
-	case EGMCAbilityEffectQueueType::ServerAuthMove:
-	case EGMCAbilityEffectQueueType::ServerAuth:
-		{
-			if (!HasAuthority())
-			{
-				UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client!"),
-					*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num())
-				return false;
+				return true;
 			}
-			
-			TGMASBoundQueueOperation<UGMCAbilityEffect, FGMCAbilityEffectData> Operation;
-			FGMCAbilityEffectData Data;
-			QueuedEffectOperations.MakeOperation(Operation, EGMASBoundQueueOperationType::Remove, FGameplayTag::EmptyTag, Data, Ids);
-			QueuedEffectOperations.QueuePreparedOperation(Operation, QueueType == EGMCAbilityEffectQueueType::ServerAuthMove);
-			
-			if (QueueType == EGMCAbilityEffectQueueType::ServerAuth)
-			{
-				// Send the operation over to our client via standard RPC.
-				ClientQueueEffectOperation(Operation);
-			}
-		}
-
-		return true;
 	}
-	
+
+	ensureMsgf(false, TEXT("[%20s] %s attempted a removal of effects but something went horribly wrong!"),
+		*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName());
 	UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a removal of effects but something went horribly wrong!"),
 		*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName())
 	return false;
