@@ -390,6 +390,8 @@ public:
 	/** Get an Attribute using its Tag */
 	const FAttribute* GetAttributeByTag(FGameplayTag AttributeTag) const;
 
+	TMap<int, UGMCAbility*> GetActiveAbilities() const { return ActiveAbilities; }
+
 	// Get Attribute value by Tag
 	UFUNCTION(BlueprintPure, Category="GMAS|Attributes")
 	float GetAttributeValueByTag(UPARAM(meta=(Categories="Attribute"))FGameplayTag AttributeTag) const;
