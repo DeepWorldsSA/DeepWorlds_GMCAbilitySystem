@@ -140,6 +140,10 @@ struct FGMCAbilityEffectData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	FGameplayTagContainer CancelAbilityOnActivation;
 
+	// When this effect end, it will end ability present in this container
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
+	FGameplayTagContainer CancelAbilityOnEnd;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	TArray<FGMCAttributeModifier> Modifiers;
 	
@@ -240,7 +244,8 @@ private:
 
 	void AddAbilitiesToOwner();
 	void RemoveAbilitiesFromOwner();
-	void EndActiveAbilitiesFromOwner();
+	void EndActiveAbilitiesFromOwner(const FGameplayTagContainer& TagContainer);
+	
 
 	// Does the owner have any of the tags from the container?
 	bool DoesOwnerHaveTagFromContainer(FGameplayTagContainer& TagContainer) const;
