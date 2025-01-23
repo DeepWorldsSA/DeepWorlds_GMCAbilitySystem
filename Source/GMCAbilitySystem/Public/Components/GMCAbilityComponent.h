@@ -280,6 +280,11 @@ public:
 	void ApplyAbilityEffectSafe(TSubclassOf<UGMCAbilityEffect> EffectClass, FGMCAbilityEffectData InitializationData, EGMCAbilityEffectQueueType QueueType,
 		UPARAM(DisplayName="Success") bool& OutSuccess, UPARAM(DisplayName="Effect Handle") int& OutEffectHandle, UPARAM(DisplayName="Effect Network ID") int& OutEffectId, UPARAM(DisplayName="Effect Instance") UGMCAbilityEffect*& OutEffect);
 
+	/** Short version of ApplyAbilityEffect (Fire and Forget, return nullptr if fail, or the effect instance if success)
+	 * Don't suggest it for BP user to avoid confusion.
+	 */
+	UGMCAbilityEffect* ApplyAbilityEffectShort(TSubclassOf<UGMCAbilityEffect> EffectClass, EGMCAbilityEffectQueueType QueueType);
+
 	/**
 	 * Applies an effect to the ability component. If the Queue Type is Predicted, the effect will be immediately added
 	 * on both client and server; this must happen within the GMC movement lifecycle for it to be valid. If the
