@@ -417,7 +417,7 @@ bool UGMC_AbilitySystemComponent::IsAbilityTagBlocked(const FGameplayTag Ability
 		if (IsValid(ActiveAbility.Value) && ActiveAbility.Value->AbilityState != EAbilityState::Ended)
 		{
 			for (auto& Tag : ActiveAbility.Value->BlockOtherAbility) {
-				if (Tag.MatchesTag(AbilityTag)) {
+				if (AbilityTag.MatchesTag(Tag)) {
 					UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability can't activate, blocked by Ability: %s"), *ActiveAbility.Value->GetName());
 					return true;
 				}
