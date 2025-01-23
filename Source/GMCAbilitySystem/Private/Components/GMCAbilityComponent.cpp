@@ -1615,7 +1615,7 @@ UGMCAbilityEffect* UGMC_AbilitySystemComponent::ApplyAbilityEffectShort(TSubclas
 	UGMCAbilityEffect* OutEffect = nullptr;
 	
 	ApplyAbilityEffectSafe(EffectClass, FGMCAbilityEffectData{}, QueueType, bOutSuccess, OutEffectHandle, OutEffectId, OutEffect);
-	return OutEffect;
+	return bOutSuccess ? OutEffect : nullptr;
 }
 
 
@@ -1785,6 +1785,23 @@ void UGMC_AbilitySystemComponent::RemoveActiveAbilityEffectSafe(UGMCAbilityEffec
 	
 	RemoveEffectByIdSafe({ Effect->EffectData.EffectID }, QueueType);
 }
+
+
+void UGMC_AbilitySystemComponent::RemoveActiveAbilityEffectByTag(FGameplayTag Tag, EGMCAbilityEffectQueueType QueueType, bool bAllInstance) {
+
+	for (auto& [EffectId, Effect] : ActiveEffects)
+	{
+		if (IsValid(Effect) && Tag.MatchesTag(Effect->EffectData.EffectTag))
+		{
+			RemoveEffectByIdSafe({ EffectId }, QueueType);
+			if (!bAllInstance) {
+				return;
+			}
+		}
+	}
+	
+}
+
 
 TArray<int> UGMC_AbilitySystemComponent::EffectsMatchingTag(const FGameplayTag& Tag, int32 NumToRemove) const
 {
