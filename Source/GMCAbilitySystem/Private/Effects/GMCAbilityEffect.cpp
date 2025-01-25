@@ -159,7 +159,15 @@ void UGMCAbilityEffect::BeginDestroy() {
 
 void UGMCAbilityEffect::Tick(float DeltaTime)
 {
-	if (bCompleted) return;
+	// Aherys : I'm not sure if this is correct. Sometime this is GC. We need to catch why, and when.
+	if (bCompleted || IsUnreachable()) {
+		if (IsUnreachable()) {
+			UE_LOG(LogGMCAbilitySystem, Error, TEXT("Effect is unreachable : %s"), *EffectData.EffectTag.ToString());
+			ensureMsgf(false, TEXT("Effect is being ticked after being completed or GC : %s"), *EffectData.EffectTag.ToString());
+		}
+		return;
+	}
+	
 	EffectData.CurrentDuration += DeltaTime;
 	TickEvent(DeltaTime);
 	
