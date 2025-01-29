@@ -256,9 +256,16 @@ private:
 	void StartEffect();
 
 	
-	
-
 public:
+
+	// Blueprint Event for when the effect starts
+	UFUNCTION(BlueprintImplementableEvent)
+	void StartEffectEvent();
+
+	UFUNCTION(BlueprintImplementableEvent)
+	void EndEffectEvent();
+
+	
 	FString ToString() {
 		return FString::Printf(TEXT("[name: %s] (State %s) | Started: %d | Period Paused: %d | Data: %s"), *GetName(), *EnumToString(CurrentState), bHasStarted, IsPeriodPaused(), *EffectData.ToString());
 	}

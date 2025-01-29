@@ -100,6 +100,8 @@ void UGMCAbilityEffect::StartEffect()
 		EndEffect();
 	}
 
+	StartEffectEvent();
+
 	UpdateState(EGMASEffectState::Started, true);
 }
 
@@ -125,10 +127,12 @@ void UGMCAbilityEffect::EndEffect()
 			OwnerAbilityComponent->ApplyAbilityEffectModifier(Modifier, false, true);
 		}
 	}
-
+	
 	EndActiveAbilitiesFromOwner(EffectData.CancelAbilityOnEnd);
 	RemoveTagsFromOwner(EffectData.bPreserveGrantedTagsIfMultiple);
 	RemoveAbilitiesFromOwner();
+	
+	EndEffectEvent();
 }
 
 
