@@ -223,10 +223,13 @@ public:
 
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "GMCAbilitySystem")
-	UGMC_AbilitySystemComponent* SourceAbilityComponent;
+	UGMC_AbilitySystemComponent* SourceAbilityComponent = nullptr;
 
 	UPROPERTY(BlueprintReadOnly, Category = "GMCAbilitySystem")
-	UGMC_AbilitySystemComponent* OwnerAbilityComponent;
+	UGMC_AbilitySystemComponent* OwnerAbilityComponent = nullptr;
+
+	// Apply the things that should happen as soon as an effect starts. Tags, instant effects, etc.
+	virtual void StartEffect();
 
 private:
 	bool bHasStarted;
@@ -252,8 +255,7 @@ private:
 	
 	bool DuplicateEffectAlreadyApplied();
 
-	// Apply the things that should happen as soon as an effect starts. Tags, instant effects, etc.
-	virtual void StartEffect();
+
 
 	
 public:
