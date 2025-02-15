@@ -933,8 +933,6 @@ void UGMC_AbilitySystemComponent::ServerHandlePredictedPendingEffect(float Delta
 template<typename C, typename T>
 void UGMC_AbilitySystemComponent::ClientHandlePendingOperation(TGMASBoundQueue<C, T, false>& QueuedOperations) {
 
-	printf("ClientHandlePendingEffect");
-
 // Handle our RPC effect operations. MoveCycle operations will be sent via RPC
     // just like the Outer ones, but will be preserved in the movement history.
     auto RPCOperations = QueuedOperations.GetQueuedRPCOperations();
