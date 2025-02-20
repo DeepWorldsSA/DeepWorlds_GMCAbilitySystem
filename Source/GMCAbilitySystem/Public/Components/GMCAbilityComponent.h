@@ -306,6 +306,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="GMAS|Effects")
 	UGMCAbilityEffect* GetEffectById(const int EffectId) const;
 
+	UFUNCTION(BlueprintCallable, Category="GMAS|Effects")
+	TArray<UGMCAbilityEffect*> GetEffectsByIds(const TArray<int> EffectIds) const;
+
+	UFUNCTION(BlueprintCallable, Category="GMAS|Effects")
+	FString GetEffectsNameAsString(const TArray<UGMCAbilityEffect*>& EffectList) const;
+
 	TArray<int> EffectsMatchingTag(const FGameplayTag& Tag, int32 NumToRemove = -1) const;
 
 	// Do not call this directly unless you know what you are doing; go through the RemoveActiveAbilityEffectSafe if

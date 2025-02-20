@@ -1581,6 +1581,32 @@ UGMCAbilityEffect* UGMC_AbilitySystemComponent::GetEffectById(const int EffectId
 	return ActiveEffects[EffectId];
 }
 
+
+TArray<UGMCAbilityEffect*> UGMC_AbilitySystemComponent::GetEffectsByIds(const TArray<int> EffectIds) const {
+	TArray<UGMCAbilityEffect*> EffectsFound;
+
+	for (int EffectId : EffectIds)
+	{
+		if (ActiveEffects.Contains(EffectId))
+		{
+			EffectsFound.Add(ActiveEffects[EffectId]);
+		}
+	}
+
+	return EffectsFound;
+}
+
+
+FString UGMC_AbilitySystemComponent::GetEffectsNameAsString(const TArray<UGMCAbilityEffect*>& EffectList) const {
+	FString EffectNames;
+	for (UGMCAbilityEffect* Effect : EffectList)
+	{
+		EffectNames += (Effect ? GetNameSafe(Effect->GetClass()) : "NULLPTR EFFECT") + ", ";
+	}
+	return EffectNames;
+}
+
+
 UGMCAbilityEffect* UGMC_AbilitySystemComponent::ApplyAbilityEffect(UGMCAbilityEffect* Effect, FGMCAbilityEffectData InitializationData)
 {
 	if (Effect == nullptr) {
@@ -1729,10 +1755,11 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 			{
 				if (!GMCMovementComponent->IsExecutingMove() && GetNetMode() != NM_Standalone && !bInAncillaryTick)
 				{
-					ensureMsgf(false, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle!"),
-						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName());
-					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle!"),
-						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName())
+					
+					ensureMsgf(false, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle! (%s)"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), *GetEffectsNameAsString(GetEffectsByIds(Ids)));
+					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a predicted removal of effects outside of a movement cycle! (%s)"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), *GetEffectsNameAsString(GetEffectsByIds(Ids)));
 					return false;
 				}
 				
@@ -1770,10 +1797,10 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 				{
 					if (GetNetMode() != NM_Standalone && (HasAuthority() && !GMCMovementComponent->IsLocallyControlledServerPawn()))
 					{
-						ensureMsgf(false, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server!"),
-							*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num());
-						UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server!"),
-							*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num())
+						ensureMsgf(false, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server! (%s)"),
+							*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num(), *GetEffectsNameAsString(GetEffectsByIds(Ids)));
+						UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a client-auth removal of %d effects on a server! (%s)"),
+							*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num(), *GetEffectsNameAsString(GetEffectsByIds(Ids)))
 						return false;
 					}
 				}
@@ -1789,10 +1816,10 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 			{
 				if (!HasAuthority())
 				{
-					ensureMsgf(false, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client!"),
-						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num());
-					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client!"),
-						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num())
+					ensureMsgf(false, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client! (%s)"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num(), *GetEffectsNameAsString(GetEffectsByIds(Ids)));
+					UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a server-auth removal of %d effects on a client! (%s)"),
+						*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), Ids.Num(), *GetEffectsNameAsString(GetEffectsByIds(Ids)))
 					return false;
 				}
 				
@@ -1811,10 +1838,10 @@ bool UGMC_AbilitySystemComponent::RemoveEffectByIdSafe(TArray<int> Ids, EGMCAbil
 			}
 	}
 
-	ensureMsgf(false, TEXT("[%20s] %s attempted a removal of effects but something went horribly wrong!"),
-		*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName());
-	UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a removal of effects but something went horribly wrong!"),
-		*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName())
+	ensureMsgf(false, TEXT("[%20s] %s attempted a removal of effects but something went horribly wrong! (%s)"),
+		*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(), *GetEffectsNameAsString(GetEffectsByIds(Ids)));
+	UE_LOG(LogGMCAbilitySystem, Error, TEXT("[%20s] %s attempted a removal of effects but something went horribly wrong! (%s)"),
+		*GetNetRoleAsString(GetOwnerRole()), *GetOwner()->GetName(),*GetEffectsNameAsString(GetEffectsByIds(Ids)))
 	return false;
 }
 
