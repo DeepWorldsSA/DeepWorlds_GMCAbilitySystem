@@ -909,8 +909,6 @@ void UGMC_AbilitySystemComponent::ServerHandlePredictedPendingEffect(float Delta
 
 void UGMC_AbilitySystemComponent::ClientHandlePendingEffect() {
 
-	printf("ClientHandlePendingEffect");
-
 // Handle our RPC effect operations. MoveCycle operations will be sent via RPC
     // just like the Outer ones, but will be preserved in the movement history.
     auto RPCOperations = QueuedEffectOperations.GetQueuedRPCOperations();
