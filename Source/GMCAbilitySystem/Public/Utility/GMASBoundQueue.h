@@ -483,7 +483,11 @@ public:
 
 		if (TargetIdx != -1)
 		{
+#if ENGINE_MAJOR_VERSION >=5 && ENGINE_MINOR_VERSION >= 4
+			QueuedRPCOperations.RemoveAtSwap(TargetIdx, 1, EAllowShrinking::No);
+#else
 			QueuedRPCOperations.RemoveAtSwap(TargetIdx, 1, false);
+#endif
 			return true;
 		}
 
@@ -498,7 +502,11 @@ public:
 		
 		if (TargetIdx != -1)
 		{
+#if ENGINE_MAJOR_VERSION >=5 && ENGINE_MINOR_VERSION >= 4
+			QueuedBoundOperations.RemoveAtSwap(TargetIdx, 1, EAllowShrinking::No);
+#else
 			QueuedBoundOperations.RemoveAtSwap(TargetIdx, 1, false);
+#endif
 			return true;
 		}
 
