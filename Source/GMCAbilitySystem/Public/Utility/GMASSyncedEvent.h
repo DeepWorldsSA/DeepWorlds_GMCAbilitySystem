@@ -28,10 +28,10 @@ struct GMCABILITYSYSTEM_API FGMASSyncedEventContainer
 	UPROPERTY()
 	TEnumAsByte<EGMASSyncedEventType> EventType{BlueprintImplemented};
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "GMASSyncedEvent")
 	FGameplayTag EventTag;
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "GMASSyncedEvent")
 	FInstancedStruct InstancedPayload;
 };
 
@@ -40,9 +40,9 @@ struct GMCABILITYSYSTEM_API FGMASSyncedEventData_AddImpulse
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "Impulse")
 	FVector Impulse {FVector::Zero()};
 
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "Impulse")
 	bool bVelocityChange {false};
 };
