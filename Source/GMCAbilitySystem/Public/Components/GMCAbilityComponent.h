@@ -588,12 +588,12 @@ private:
 	// Event Implementations
 
 	// Execute an event that is created by the server where execution is synced between server and client
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category = "GMASSyncedEvent")
 	void ExecuteSyncedEvent(FGMASSyncedEventContainer EventData);
 
 
 	
-	UFUNCTION(BlueprintCallable, DisplayName="Add Impulse (Synced Event)")
+	UFUNCTION(BlueprintCallable, DisplayName="Add Impulse (Synced Event)", Category = "Impulse")
 	void AddImpulse(FVector Impulse, bool bVelChange = false);
 	void AddImpulseEvent(const FGMASSyncedEventContainer& EventData) const;
 	
