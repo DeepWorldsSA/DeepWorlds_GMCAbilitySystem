@@ -81,7 +81,8 @@ struct FGMCAbilityEffectData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	double Delay = 0;
 
-	// How long the effect lasts
+	// How long the effect lasts, 0 for infinite
+	// Does nothing if effect is instant
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	double Duration = 0;
 
