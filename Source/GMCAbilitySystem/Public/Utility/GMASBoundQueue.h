@@ -575,6 +575,10 @@ public:
 	{
 		// Deduct from our ack lifetime; if we've gone stale, remove the stale acks to avoid it just growing forever.
 		TArray<FGMASBoundQueueAcknowledgement> FreshAcks;
+		if (!Acknowledgments.IsValid()) { // that fix the crash, but doesn't fix the issue. @packetdancer
+			return;
+		}
+			
 		auto& Acks = Acknowledgments.GetMutable<FGMASBoundQueueAcknowledgements>();
 		for (auto& Ack : Acks.AckSet)
 		{
