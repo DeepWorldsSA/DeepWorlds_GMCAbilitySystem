@@ -56,8 +56,10 @@ void UGMCAbilityEffect::StartEffect()
 	bHasStarted = true;
 
 	// Ensure tag requirements are met before applying the effect
-	if( ( EffectData.MustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.MustHaveTags) ) ||
-		DoesOwnerHaveTagFromContainer(EffectData.MustNotHaveTags) )
+	if( ( EffectData.ApplicationMustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.ApplicationMustHaveTags) ) ||
+	DoesOwnerHaveTagFromContainer(EffectData.ApplicationMustNotHaveTags) ||
+	( EffectData.MustHaveTags.Num() > 0 && !DoesOwnerHaveTagFromContainer(EffectData.MustHaveTags) ) ||
+	DoesOwnerHaveTagFromContainer(EffectData.MustNotHaveTags) )
 	{
 		EndEffect();
 		return;
@@ -66,6 +68,8 @@ void UGMCAbilityEffect::StartEffect()
 	AddTagsToOwner();
 	AddAbilitiesToOwner();
 	EndActiveAbilitiesFromOwner(EffectData.CancelAbilityOnActivation);
+
+	bHasAppliedEffect = true;
 
 	// Instant effects modify base value and end instantly
 	if (EffectData.bIsInstant)
@@ -117,8 +121,8 @@ void UGMCAbilityEffect::EndEffect()
 		UpdateState(EGMASEffectState::Ended, true);
 	}
 
-	// Only remove tags and abilities if the effect has started
-	if (!bHasStarted) return;
+	// Only remove tags and abilities if the effect has started and applied
+	if (!bHasStarted || !bHasAppliedEffect) return;
 
 	if (EffectData.bNegateEffectAtEnd)
 	{

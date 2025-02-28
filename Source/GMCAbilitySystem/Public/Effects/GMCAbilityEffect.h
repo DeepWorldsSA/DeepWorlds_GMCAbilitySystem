@@ -234,6 +234,7 @@ protected:
 
 private:
 	bool bHasStarted;
+	bool bHasAppliedEffect;
 
 	// Used for calculating when to tick Period effects
 	float PrevPeriodMod = 0;
