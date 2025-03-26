@@ -2029,13 +2029,15 @@ int32 UGMC_AbilitySystemComponent::GetNumEffectByTag(FGameplayTag InEffectTag){
 
 TArray<const FAttribute*> UGMC_AbilitySystemComponent::GetAllAttributes() const{
 	TArray<const FAttribute*> AllAttributes;
-	for (const FAttribute& Attribute : UnBoundAttributes.Items){
-		AllAttributes.Add(&Attribute);
+	
+	for (int32 i = 0; i < UnBoundAttributes.Items.Num(); i++){
+		AllAttributes.Add(&UnBoundAttributes.Items[i]);
 	}
 
-	for (const FAttribute& Attribute : BoundAttributes.Attributes){
-		AllAttributes.Add(&Attribute);
+	for (int32 i = 0; i < BoundAttributes.Attributes.Num(); i++){
+		AllAttributes.Add(&BoundAttributes.Attributes[i]);
 	}
+	
 	return AllAttributes;
 }
 
