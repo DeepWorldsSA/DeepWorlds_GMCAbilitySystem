@@ -287,12 +287,7 @@ void UGMCAbility::BeginAbility()
 
 	// Cancel Abilities in CancelAbilitiesWithTag container
 	for (const auto& AbilityToCancelTag : CancelAbilitiesWithTag) {
-		if (AbilityTag == AbilityToCancelTag) {
-			UE_LOG(LogGMCAbilitySystem, Warning, TEXT("Ability (tag) %s is trying to cancel itself, if you attempt to reset the ability, please use //TODO instead"), *AbilityTag.ToString());
-			continue;
-		}
-		
-		if (OwnerAbilityComponent->EndAbilitiesByTag(AbilityToCancelTag)) {
+		if (OwnerAbilityComponent->EndAbilitiesByTag(AbilityToCancelTag,TArray<const UGMCAbility&>({*this}))) {
 			UE_LOG(LogGMCAbilitySystem, Verbose, TEXT("Ability (tag) %s has been cancelled by (tag) %s"), *AbilityTag.ToString(), *AbilityToCancelTag.ToString());	
 		}
 	}

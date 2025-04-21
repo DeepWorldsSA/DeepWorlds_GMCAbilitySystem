@@ -429,11 +429,22 @@ bool UGMC_AbilitySystemComponent::IsAbilityTagBlocked(const FGameplayTag Ability
 }
 
 
-int UGMC_AbilitySystemComponent::EndAbilitiesByTag(FGameplayTag AbilityTag) {
+int UGMC_AbilitySystemComponent::EndAbilitiesByTag(FGameplayTag AbilityTag, TArray<const UGMCAbility&> AbilitiesInstanceToIgnore) {
 	int AbilitiesEnded = 0;
 	for (const auto& ActiveAbilityData : ActiveAbilities)
 	{
+
+		// Skip instances that are in the ignore list
+		if (AbilitiesInstanceToIgnore.Contains(*ActiveAbilityData.Value)) 
+		{
+			continue;
+		}
+		
 		if (ActiveAbilityData.Value->AbilityTag.MatchesTag(AbilityTag))
+		{
+			ActiveAbilityData.Value->EndAbility();
+			AbilitiesEnded++;
+		}
 		{
 			ActiveAbilityData.Value->SetPendingEnd();
 			AbilitiesEnded++;
@@ -1149,7 +1160,7 @@ bool UGMC_AbilitySystemComponent::ProcessAbilityOperation(
 
 	if (OperationType == EGMASBoundQueueOperationType::Cancel)
 	{
-		EndAbilitiesByTag(Operation.GetTag());
+		EndAbilitiesByTag(Operation.GetTag(), TODO);
 		if (Operation.ItemClass)
 		{
 			EndAbilitiesByClass(Operation.ItemClass);

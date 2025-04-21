@@ -209,7 +209,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, DisplayName="End Abilities (By Tag)", Category="GMAS|Abilities")
 	// End all abilities with the corresponding tag, returns the number of abilities ended
-	int EndAbilitiesByTag(FGameplayTag AbilityTag);
+	int EndAbilitiesByTag(FGameplayTag AbilityTag, TArray<const UGMCAbility&> AbilitiesInstanceToIgnore = TArray<const UGMCAbility&>());
 
 	UFUNCTION(BlueprintCallable, DisplayName="End Abilities (By Class)", Category="GMAS|Abilities")
 	// End all abilities with the corresponding tag, returns the number of abilities ended
