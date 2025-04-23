@@ -5,6 +5,8 @@
 #include "Net/Serialization/FastArraySerializer.h"
 #include "GMCAttributes.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FAttributeChanged, float, OldValue, float, NewValue);
+
 USTRUCT(BlueprintType)
 struct GMCABILITYSYSTEM_API FAttribute : public FFastArraySerializerItem
 {
@@ -15,6 +17,9 @@ struct GMCABILITYSYSTEM_API FAttribute : public FFastArraySerializerItem
 	{
 		CalculateValue(false);
 	}
+
+	UPROPERTY(BlueprintAssignable)
+	FAttributeChanged OnAttributeChanged;
 
 	UPROPERTY()
 	mutable float AdditiveModifier{0};
@@ -89,10 +94,10 @@ struct GMCABILITYSYSTEM_API FAttribute : public FFastArraySerializerItem
 		BaseValue = Clamp.ClampValue(NewValue);
 	}
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	mutable float Value{0};
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	mutable float BaseValue{0};
 
 	// Attribute.* 
@@ -101,12 +106,12 @@ struct GMCABILITYSYSTEM_API FAttribute : public FFastArraySerializerItem
 
 	// Whether this should be bound over GMC or not.
 	// NOTE: If you don't bind it, you can't use it for any kind of prediction.
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
 	bool bIsGMCBound = false;
 
 	// Clamp the attribute to a certain range
 	// Clamping will only happen if this is modified
-	UPROPERTY(EditDefaultsOnly)
+	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem")
 	FAttributeClamp Clamp{};
 
 	FString ToString() const{
@@ -150,8 +155,7 @@ struct FGMCUnboundAttributeSet : public FFastArraySerializer
 
 	void AddAttribute(const FAttribute& NewAttribute)
 	{
-		Items.Add(NewAttribute);
-		MarkArrayDirty();
+		MarkItemDirty(Items.Add_GetRef(NewAttribute));
 	}
 
 	TArray<FAttribute> GetAttributes() const

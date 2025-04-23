@@ -26,16 +26,16 @@ struct GMCABILITYSYSTEM_API FGMCGameplayElementTagPropertyMapping
 		PropertyGuid = Other.PropertyGuid;
 	}
 	
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "GMCAbilitySystem")
 	FGameplayTagContainer TagsToMap;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category = "GMCAbilitySystem")
 	TFieldPath<FProperty> PropertyToMap;	
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category = "GMCAbilitySystem")
 	FName PropertyName;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, Category = "GMCAbilitySystem")
 	FGuid PropertyGuid;
 
 	FDelegateHandle DelegateHandle;
@@ -60,6 +60,8 @@ public:
 
 	// Must be called to actually start using this instance.
 	void Initialize(UObject* Owner, UGMC_AbilitySystemComponent* AbilitySystemComponent);
+	void Unregister();
+	void Reset();
 
 	void ApplyCurrentTags();
 	void ApplyCurrentAttributes();
@@ -76,8 +78,6 @@ protected:
 	bool SetValueForMappedProperty(FProperty* Property, float PropValue);
 	bool SetValueForMappedProperty(FProperty* Property, FGameplayTagContainer& MatchedTags);
 	
-	void Unregister();
-
 	void GameplayTagChangedCallback(const FGameplayTagContainer& AddedTags, const FGameplayTagContainer& RemovedTags);
 
 	void GameplayAttributeChangedCallback(const FGameplayTag& AttributeTag, const float OldValue, const float NewValue);
@@ -89,6 +89,6 @@ protected:
 	TWeakObjectPtr<UObject> CachedOwner;
 	TWeakObjectPtr<UGMC_AbilitySystemComponent> CachedAbilityComponent;
 
-	UPROPERTY(EditAnywhere)
+	UPROPERTY(EditAnywhere, Category = "GMCAbilitySystem")
 	TArray<FGMCGameplayElementTagPropertyMapping> PropertyMappings;
 };

@@ -13,12 +13,12 @@ struct FGMCAbilityTaskTargetDataFloat : public FGMCAbilityTaskData
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "GMCAbilitySystem")
 	float Target{0};
 };
 
 UCLASS()
-class UGMCAbilityTask_SetTargetDataFloat : public UGMCAbilityTaskBase
+class GMCABILITYSYSTEM_API UGMCAbilityTask_SetTargetDataFloat : public UGMCAbilityTaskBase
 {
 	GENERATED_BODY()
 	
@@ -26,7 +26,7 @@ public:
 	UPROPERTY(BlueprintAssignable)
 	FUGMCAbilityTaskTargetDataFloatAsyncActionPin	Completed;
 	
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite, Category = "GMCAbilitySystem")
 	float Target;
 	
 	virtual void ProgressTask(FInstancedStruct& TaskData) override;
