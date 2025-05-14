@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -39,6 +39,8 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FGameplayTagFilteredMulticastDelegate, cons
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEffectApplied, UGMCAbilityEffect*, AppliedEffect);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEffectRemoved, UGMCAbilityEffect*, RemovedEffect);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTaskTimeout, FGameplayTag, TaskTag);
 
 USTRUCT()
 struct FEffectStatePrediction
@@ -406,6 +408,11 @@ public:
 	// Called during the Ancillary Tick
 	UPROPERTY(BlueprintAssignable)
 	FOnAncillaryTick OnAncillaryTick;
+
+	// Called when a task times out
+	UPROPERTY(BlueprintAssignable)
+	FOnTaskTimeout OnTaskTimeout;
+	
 	////
 
 	// Called when the set of active tags changes.

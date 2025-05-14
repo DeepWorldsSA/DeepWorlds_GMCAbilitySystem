@@ -7,6 +7,8 @@
 class UGMC_AbilitySystemComponent;
 class UGameplayTasksComponent;
 
+
+
 UCLASS(Abstract, BlueprintType, meta = (ExposedAsyncProxy=AsyncTask), config = Game)
 class GMCABILITYSYSTEM_API UGMCAbilityTaskBase : public UGameplayTask
 {
@@ -65,7 +67,6 @@ public:
 	virtual void ClientProgressTask();
 	
 	virtual void Heartbeat();
-
 
 protected:
 	bool bTaskCompleted;
