@@ -593,7 +593,7 @@ private:
 
 public:
 	// Empty the AbilityMap and remove all granted abilities from existing maps
-	UFUNCTION(BlueprintCallable)
+	UFUNCTION(BlueprintCallable, Category="GMAS|Abilities")
 	void ClearAbilityMap();
 
 private:
