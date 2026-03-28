@@ -139,7 +139,8 @@ void UGMCAbilityTask_WaitForInputKeyRelease::ClientProgressTask()
 	TaskData.AbilityID = Ability->GetAbilityID();
 	TaskData.TaskID = TaskID;
 	const FInstancedStruct TaskDataInstance = FInstancedStruct::Make(TaskData);
-	
+
+	Ability->OwnerAbilityComponent->ServerRPC_ProgressTask(Ability->GetAbilityID(), TaskID, TaskDataInstance);
 	Ability->OwnerAbilityComponent->QueueTaskData(TaskDataInstance);
 }
 

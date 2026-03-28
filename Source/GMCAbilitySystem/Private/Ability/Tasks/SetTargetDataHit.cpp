@@ -39,6 +39,7 @@ void UGMCAbilityTask_SetTargetDataHit::ClientProgressTask()
 	TaskData.TaskID = TaskID;
 	TaskData.Target = Target;
 	const FInstancedStruct TaskDataInstance = FInstancedStruct::Make(TaskData);
-	
+
+	Ability->OwnerAbilityComponent->ServerRPC_ProgressTask(Ability->GetAbilityID(), TaskID, TaskDataInstance);
 	Ability->OwnerAbilityComponent->QueueTaskData(TaskDataInstance);
 }
