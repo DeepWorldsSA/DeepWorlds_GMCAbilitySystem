@@ -129,7 +129,7 @@ void UGMC_AbilitySystemComponent::BindReplicationData()
 	QueuedEffectOperations.BindToGMC(GMCMovementComponent);
 	QueuedEffectOperations_ClientAuth.BindToGMC(GMCMovementComponent);
 	QueuedEventOperations.BindToGMC(GMCMovementComponent);
-	
+
 }
 void UGMC_AbilitySystemComponent::GenAncillaryTick(float DeltaTime, bool bIsCombinedClientMove)
 {
@@ -839,6 +839,16 @@ void UGMC_AbilitySystemComponent::CleanupStaleAbilities()
 				// Fail safe to tell client server has ended the ability
 				RPCClientEndAbility(It.Value()->GetAbilityID());
 			};
+
+			// Clean dedup sets for tasks belonging to this ability
+			const int AbilityID = It.Value()->GetAbilityID();
+			for (const auto& TaskEntry : It.Value()->RunningTasks)
+			{
+				const uint64 Key = MakeTaskKey(AbilityID, TaskEntry.Key);
+				ServerProcessedTasks.Remove(Key);
+				ClientProcessedTasks.Remove(Key);
+			}
+
 			It.RemoveCurrent();
 		}
 	}
@@ -1095,14 +1105,6 @@ void UGMC_AbilitySystemComponent::RPCClientEndEffect_Implementation(int EffectID
 	}
 }
 
-void UGMC_AbilitySystemComponent::RPCTaskHeartbeat_Implementation(int AbilityID, int TaskID)
-{
-	if (ActiveAbilities.Contains(AbilityID) && ActiveAbilities[AbilityID] != nullptr)
-	{
-		ActiveAbilities[AbilityID]->HandleTaskHeartbeat(TaskID);
-	}
-}
-
 void UGMC_AbilitySystemComponent::RPCClientEndAbility_Implementation(int AbilityID)
 {
 	if (ActiveAbilities.Contains(AbilityID))
@@ -1121,6 +1123,44 @@ void UGMC_AbilitySystemComponent::RPCConfirmAbilityActivation_Implementation(int
 	}
 }
 
+void UGMC_AbilitySystemComponent::ServerRPC_ProgressTask_Implementation(
+	int AbilityID, int TaskID, FInstancedStruct TaskPayload)
+{
+	const uint64 Key = MakeTaskKey(AbilityID, TaskID);
+	if (ServerProcessedTasks.Contains(Key)) return;
+
+	if (ActiveAbilities.Contains(AbilityID))
+	{
+		UGMCAbility* Ab = ActiveAbilities[AbilityID];
+		if (Ab->RunningTasks.Contains(TaskID) && Ab->RunningTasks[TaskID] != nullptr)
+		{
+			ServerProcessedTasks.Add(Key);
+			Ab->HandleTaskData(TaskID, TaskPayload);
+
+			if (!GMCMovementComponent->IsLocallyControlledServerPawn())
+			{
+				RPCClientProgressTask(AbilityID, TaskID, TaskPayload);
+			}
+		}
+	}
+}
+
+void UGMC_AbilitySystemComponent::RPCClientProgressTask_Implementation(
+	int AbilityID, int TaskID, FInstancedStruct TaskPayload)
+{
+	const uint64 Key = MakeTaskKey(AbilityID, TaskID);
+	if (ClientProcessedTasks.Contains(Key)) return;
+
+	if (ActiveAbilities.Contains(AbilityID))
+	{
+		UGMCAbility* Ab = ActiveAbilities[AbilityID];
+		if (Ab->RunningTasks.Contains(TaskID) && Ab->RunningTasks[TaskID] != nullptr)
+		{
+			ClientProcessedTasks.Add(Key);
+			Ab->HandleTaskData(TaskID, TaskPayload);
+		}
+	}
+}
 
 void UGMC_AbilitySystemComponent::ApplyStartingEffects(bool bForce) {
 	if (HasAuthority() && StartingEffects.Num() > 0 && (bForce || !bStartingEffectsApplied))
@@ -1165,12 +1205,21 @@ void UGMC_AbilitySystemComponent::ClearAbilityAndTaskData() {
 
 
 void UGMC_AbilitySystemComponent::SendTaskDataToActiveAbility(bool bFromMovement) {
-	
+
 	const FGMCAbilityTaskData TaskDataFromInstance = TaskData.IsValid() ? TaskData.Get<FGMCAbilityTaskData>() : FGMCAbilityTaskData{};
 	if (TaskDataFromInstance != FGMCAbilityTaskData{} && /*safety check*/ TaskDataFromInstance.TaskID >= 0)
 	{
+		const uint64 Key = MakeTaskKey(TaskDataFromInstance.AbilityID, TaskDataFromInstance.TaskID);
+
+		// Skip if already processed via RPC
+		if (HasAuthority() && ServerProcessedTasks.Contains(Key)) return;
+		if (!HasAuthority() && ClientProcessedTasks.Contains(Key)) return;
+
 		if (ActiveAbilities.Contains(TaskDataFromInstance.AbilityID) && ActiveAbilities[TaskDataFromInstance.AbilityID]->bActivateOnMovementTick == bFromMovement)
 		{
+			if (HasAuthority()) ServerProcessedTasks.Add(Key);
+			else ClientProcessedTasks.Add(Key);
+
 			ActiveAbilities[TaskDataFromInstance.AbilityID]->HandleTaskData(TaskDataFromInstance.TaskID, TaskData);
 		}
 	}

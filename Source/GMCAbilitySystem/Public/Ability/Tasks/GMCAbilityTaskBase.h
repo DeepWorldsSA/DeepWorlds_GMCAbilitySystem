@@ -65,8 +65,6 @@ public:
 	// Client calling to progress the task forward
 	// Task must make sure this is handled properly
 	virtual void ClientProgressTask();
-	
-	virtual void Heartbeat();
 
 protected:
 	bool bTaskCompleted;
@@ -78,15 +76,6 @@ protected:
 	bool IsClientOrRemoteListenServerPawn() const;
 
 private:
-	// How often client sends heartbeats to server
-	float HeartbeatInterval = .2f;
-
-	// Max time between heartbeats before server cancels task
-	// Aherys: previous value was 0.3f it's maybe a bit too low for harsh network conditions
-	float HeartbeatMaxInterval = 3.f;
-	
-	float ClientLastHeartbeatSentTime = 0.f;
-	float LastHeartbeatReceivedTime = 0.f;
 
 
 };

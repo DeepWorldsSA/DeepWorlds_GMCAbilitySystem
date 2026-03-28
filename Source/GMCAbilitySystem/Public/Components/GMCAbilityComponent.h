@@ -551,9 +551,6 @@ public:
 	UPROPERTY(BlueprintReadWrite, AdvancedDisplay, Category = "GMCAbilitySystem")
 	UGMC_MovementUtilityCmp* GMCMovementComponent;
 
-	UFUNCTION(Server, Reliable)
-	void RPCTaskHeartbeat(int AbilityID, int TaskID);
-
 	/**
 	 * Adds a filtered delegate to be called if any tag matching the filter is added or removed. Tag matching is not
 	 * exact, so parent tags can be provided.
@@ -696,6 +693,11 @@ private:
 	void InitializeStartingAbilities();
 	
 	TArray<FInstancedStruct> QueuedTaskData;
+
+	// Dedup: (AbilityID, TaskID) pairs already processed via RPC this ability lifetime
+	TSet<uint64> ServerProcessedTasks;
+	TSet<uint64> ClientProcessedTasks;
+	static uint64 MakeTaskKey(int InAbilityID, int InTaskID) { return (static_cast<uint64>(InAbilityID) << 32) | static_cast<uint64>(static_cast<uint32>(InTaskID)); }
 
 	// Queued ability operations (activate, cancel, etc.)
 	TGMASBoundQueue<UGMCAbility, FGMCAbilityData> QueuedAbilityOperations;
@@ -857,6 +859,14 @@ private:
 	friend UGMCAbilityAnimInstance;
 
 public:
+	// Client -> Server: reliably progress a task (supplements lossy GMC move pipeline)
+	UFUNCTION(Server, Reliable)
+	void ServerRPC_ProgressTask(int AbilityID, int TaskID, FInstancedStruct TaskPayload);
+
+	// Server -> Client: confirm task was processed server-side
+	UFUNCTION(Client, Reliable)
+	void RPCClientProgressTask(int AbilityID, int TaskID, FInstancedStruct TaskPayload);
+
 	// Networked FX
 	// Is this ASC locally controlled?
 	bool IsLocallyControlledPawnASC() const;

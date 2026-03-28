@@ -179,13 +179,6 @@ void UGMCAbility::HandleTaskData(int TaskID, FInstancedStruct TaskData)
 	}
 }
 
-void UGMCAbility::HandleTaskHeartbeat(int TaskID)
-{
-	if (RunningTasks.Contains(TaskID) && RunningTasks[TaskID] != nullptr) // Do we ever remove orphans tasks ?
-	{
-		RunningTasks[TaskID]->Heartbeat();
-	}
-}
 
 void UGMCAbility::CancelConflictingAbilities()
 {

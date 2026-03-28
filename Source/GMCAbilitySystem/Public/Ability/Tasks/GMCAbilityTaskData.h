@@ -10,7 +10,6 @@ UENUM()
 enum EGMCAbilityTaskDataType : uint8
 {
 	None,
-	Heartbeat,
 	Progress
 };
 

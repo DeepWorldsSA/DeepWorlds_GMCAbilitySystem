@@ -187,8 +187,6 @@ public:
 	// Pass data into the Task
 	void HandleTaskData(int TaskID, FInstancedStruct TaskData);
 
-	void HandleTaskHeartbeat(int TaskID);
-
 	// UFUNCTION(BlueprintCallable)
 	// bool HasAuthority();
 
