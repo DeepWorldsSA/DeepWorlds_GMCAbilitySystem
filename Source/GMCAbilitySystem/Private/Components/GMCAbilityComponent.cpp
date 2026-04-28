@@ -1828,32 +1828,11 @@ void UGMC_AbilitySystemComponent::RemoveActiveAbilityEffect(UGMCAbilityEffect* E
 {
 	if (Effect == nullptr || !ActiveEffects.Contains(Effect->EffectData.EffectID)) return;
 
-	// Anti-drift defer: for effects that keep ticking attributes after Remove is called, the side that ends the
-	// effect later accumulates extra modifier applications. Affects both EffectTypes that drain over time:
-	//   - Ticking : continuous drain proportional to DeltaTime (e.g. Stamina via SprintCost)
-	//   - Periodic: discrete chunks fired at period boundaries (e.g. Recovery +X Stamina/s)
-	// We defer EndEffect() on both client and server for the same logical move tick window (ClientGraceTime),
-	// so each side fires the same number of Tick / period boundary applications before the effect actually ends.
-	const bool bIsNetworked    = GetNetMode() != NM_Standalone;
-	const bool bIsTimeDriven   = Effect->EffectData.EffectType == EGMASEffectType::Ticking
-	                          || Effect->EffectData.EffectType == EGMASEffectType::Periodic;
-	const bool bHasGracePeriod = Effect->EffectData.ClientGraceTime > 0.f;
-
-	if (bIsNetworked && bIsTimeDriven && bHasGracePeriod && !Effect->bCompleted)
-	{
-		// Idempotent arming on absolute ActionTimer. The first call latches EndAtActionTimer using
-		// the current ActionTimer (which is identical on client and server replay because both
-		// process this Remove at the same logical move tick — GMC bound state invariant). Re-arming
-		// during the defer window must be a NO-OP: a duplicate Remove path (e.g. RPCClientEndEffect
-		// landing on top of a local-replayed Remove) would otherwise reset the latch and shift the
-		// end timestamp, breaking bilateral symmetry.
-		if (Effect->EndAtActionTimer < 0.0)
-		{
-			Effect->EndAtActionTimer = ActionTimer + Effect->EffectData.ClientGraceTime;
-		}
-		return;
-	}
-
+	// Drain symmetry between client (predicted Remove) and server (replayed Remove) is enforced
+	// by ActionTimer-determinism in GMC: both sides process this Remove at the same logical move
+	// tick, so both have ticked the effect's modifiers the same number of times up to that point.
+	// EndEffect can fire immediately on both sides — the bilateral defer that previously gated
+	// this path was correctness-redundant after the ActionTimer-absolute predicted end refactor.
 	Effect->EndEffect();
 }
 

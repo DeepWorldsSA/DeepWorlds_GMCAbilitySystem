@@ -98,10 +98,6 @@ struct FGMCAbilityEffectData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem", meta=(EditCondition = "EffectType == EGMASEffectType::Ticking || EffectType == EGMASEffectType::Persistent || EffectType == EGMASEffectType::Periodic", EditConditionHides))
 	double Duration = 0;
 	
-	// Time in seconds that the client has to apply itself an external effect before the server will force it. If this time is reach, a rollback is likely to happen.
-	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "GMCAbilitySystem", AdvancedDisplay)
-	float ClientGraceTime = 1.f;
-
 	// Tag to identify this effect
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	FGameplayTag EffectTag;
@@ -271,14 +267,6 @@ public:
 
 	bool bCompleted;
 
-	// Anti-drift on Predicted Remove for Ticking/Periodic effects: deterministic bilateral defer using
-	// an absolute ActionTimer timestamp instead of a per-tick countdown. Both client and server arm
-	// EndAtActionTimer = ActionTimer + ClientGraceTime when Remove is processed at the same logical
-	// move tick (GMC replay invariant) — they end on the exact same logical tick by construction,
-	// independent of DeltaTime, framerate, or replay re-execution.
-	//
-	// -1.0 = not armed. >= 0 = armed, end when OwnerAbilityComponent->ActionTimer >= EndAtActionTimer.
-	double EndAtActionTimer { -1.0 };
 
 	// Time that the client applied this Effect. Used for when a client predicts an effect, if the server has not
 	// confirmed this effect within a time range, the effect will be cancelled.
