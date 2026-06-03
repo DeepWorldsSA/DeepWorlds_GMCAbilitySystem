@@ -164,6 +164,11 @@ public:
 	// Remove the ability cost effect (if applicable)
 	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
 	virtual void RemoveAbilityCost();
+	
+	// Retrieves the attribute costs of this ability from its AbilityCost effect class.
+	// @return A map of GameplayTags (Attributes) to their respective modifier values.
+	UFUNCTION(BlueprintPure, Category = "GMCAbilitySystem")
+	TMap<FGameplayTag, float> GetAbilityCostValues() const;
 
 	// Live modifying the BlockOtherAbility tags
 	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
