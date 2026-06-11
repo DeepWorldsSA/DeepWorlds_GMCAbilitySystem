@@ -117,6 +117,11 @@ struct FGMCAbilityEffectData
 	// effect is removed: both client and server arm EndAtActionTimer = ActionTimer + this value so
 	// each side ends on the same logical move tick.
 	//
+	// Also sizes the natural expiry grace window for effects with PauseEffect tags: those end
+	// at EndTime + Grace instead of EndTime (modifiers suppressed during the window), so a
+	// server-applied pause that replicates within the window can still catch the effect
+	// before the client discards it. See UGMCAbilityEffect::NaturalExpiryGrace().
+	//
 	// Sentinel semantics: 0 means "use the project-wide default" from
 	// `UGMASNetworkTimingSettings::DefaultClientGraceTime` (Project Settings → GMC Ability System →
 	// Network Timing, default 0.5s — sized for typical RTT + jitter + one server tick at 30 Hz).
@@ -172,7 +177,17 @@ struct FGMCAbilityEffectData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	FGameplayTagContainer GrantedAbilities;
 
-	// If tag is present, this effect will not tick. Duration is not affected.
+	// If tag is present, this effect will not tick and its time pauses.
+	// - Start Delay WILL pause
+	// - While Paused, TickEvent() WILL to run, use IsPaused() where needed.
+	// - While Paused, PeriodTick() WILL NOT run.
+	// - Persistent modifiers WILL persist while pause
+	// - Ticking and Periodic effects WILL NOT advance; will resume where they left off
+	//
+	// An Effect with PauseEffect declared will gain a grace window (see ClientGraceTime): 
+	// they survive until EndTime + Grace with modifiers suppressed, so a pause landing
+	// within replication latency of EndTime can still catch the effect on the
+	// client instead of racing its local expiry.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	FGameplayTagContainer PauseEffect;
 
@@ -343,6 +358,13 @@ public:
 
 	virtual bool IsPaused();
 
+	// Natural-expiry grace window (seconds) for this effect: effects with PauseEffect
+	// tags end at EndTime + this value (with modifiers suppressed during the window)
+	// so a late-replicating server pause can still catch them.
+	// 0 for effects without pause tags or without a finite Duration (infinite effects
+	// never naturally expire, so there is nothing to extend) — those are unchanged.
+	double NaturalExpiryGrace() const;
+
 	bool IsEffectModifiersRegisterInHistory() const;
 	
 	float ProcessCustomModifier(const TSubclassOf<UGMCAttributeModifierCustom_Base>& MCClass, const FAttribute* attribute);
@@ -360,6 +382,16 @@ public:
 	// Cleared by the polling block in TickActiveEffects when the successor reaches
 	// Validated (real EndEffect runs) or Timeout (OLD is revived).
 	bool bPendingDeathBySuccessor = false;
+
+	// Absolute ActionTimer anchor for the timing pause (PauseEffect tags).
+	// -1.0 = timing not paused. Latched ONCE to the current move window's start
+	// (ActionTimer - DeltaTime) when a pause is first observed; consumed on unpause by
+	// shifting StartTime/EndTime forward by the paused span. The window start is
+	// invariant across combined-client-move re-executions (which re-run the same window
+	// with a growing DeltaTime) and equal on server and client, so both sides compute
+	// the exact same shift — unlike per-tick DeltaTime accumulation, which over-counts
+	// on the client whenever moves are combined while paused.
+	double PausedAtActionTimer { -1.0 };
 
 	// Time that the client applied this Effect. Used for when a client predicts an effect, if the server has not
 	// confirmed this effect within a time range, the effect will be cancelled.

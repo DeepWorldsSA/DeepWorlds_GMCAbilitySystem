@@ -1895,6 +1895,374 @@ void FGMASBugFixSpec::Define()
 				AbilityComp->GetBoundQueueV2ForTest().ClientQueuedOperations.Num(), 1);
 		});
 	});
+
+	// ── PauseEffect timing pause ──────────────────────────────────────────
+	// While paused, time pauses: Delay, Duration, CurrentDuration and periodic
+	// boundaries stop advancing and resume where they left off. Implemented with
+	// absolute ActionTimer anchors (latch on pause, single StartTime/EndTime
+	// shift on unpause) — see UGMCAbilityEffect::Tick.
+	Describe("PauseEffect timing pause", [this]()
+	{
+		It("Duration and CurrentDuration hold while paused and resume on unpause", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			// Apply at t=1.0: StartTime=1.0, EndTime=3.0. No modifiers — this test
+			// is about timing only. Grace pinned explicitly so the expiry assertions
+			// below don't depend on the project-settings default.
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Duration            = 2.f;
+			Data.ClientGraceTime     = 0.5f;
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			// Unpaused tick to t=2.0: one second of real duration accrues.
+			AbilityComp->ActionTimer = 2.0;
+			Effect->Tick(1.f);
+			TestEqual("Unpaused: CurrentDuration advances", Effect->EffectData.CurrentDuration, 1.0);
+
+			// Pause and tick past the ORIGINAL EndTime (3.0). The pause anchor latches
+			// to the first paused move's window start (2.5 - 0.5 = 2.0).
+			AbilityComp->AddActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 2.5;  Effect->Tick(0.5f);
+			TestEqual("Paused: anchor latched at the window start", Effect->PausedAtActionTimer, 2.0);
+			AbilityComp->ActionTimer = 3.5;  Effect->Tick(1.f);
+			TestFalse("Paused effect survives past its original EndTime", Effect->bCompleted);
+			TestEqual("Paused: CurrentDuration holds", Effect->EffectData.CurrentDuration, 1.0);
+			TestEqual("Paused: EndTime untouched while latched", Effect->EffectData.EndTime, 3.0);
+
+			// Unpause: one shift of (unpause window start - anchor) = 3.5 - 2.0 = 1.5,
+			// leaving exactly the remaining 1s of duration.
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 4.0;  Effect->Tick(0.5f);
+			TestEqual("Resumed: EndTime shifted by the paused span", Effect->EffectData.EndTime, 4.5);
+			TestEqual("Resumed: anchor cleared", Effect->PausedAtActionTimer, -1.0);
+			TestFalse("Still alive with 0.5s remaining", Effect->bCompleted);
+			TestEqual("Resumed: CurrentDuration advances again", Effect->EffectData.CurrentDuration, 1.5);
+
+			// Shifted EndTime 4.5 + 0.5 grace -> actual expiry threshold 5.0.
+			AbilityComp->ActionTimer = 4.5;  Effect->Tick(0.5f);
+			TestFalse("Still alive inside the grace window", Effect->bCompleted);
+			AbilityComp->ActionTimer = 5.0;  Effect->Tick(0.5f);
+			TestTrue("Effect ends at shifted EndTime + grace", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Multiple pause episodes re-latch and accumulate their shifts", [this]()
+		{
+			// The anchor is per-episode: unpause clears it (-1.0), so a second pause
+			// latches fresh and its span compounds onto StartTime/EndTime.
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			// Apply at t=1.0: StartTime=1.0, EndTime=3.0, grace pinned to 0.5.
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Duration            = 2.f;
+			Data.ClientGraceTime     = 0.5f;
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			AbilityComp->ActionTimer = 1.5;  Effect->Tick(0.5f);
+			TestEqual("Unpaused: CurrentDuration advances", Effect->EffectData.CurrentDuration, 0.5);
+
+			// Episode 1: paused window [1.5, 2.0].
+			AbilityComp->AddActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 2.0;  Effect->Tick(0.5f);
+			TestEqual("Episode 1: anchor latched", Effect->PausedAtActionTimer, 1.5);
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 2.5;  Effect->Tick(0.5f);
+			TestEqual("Episode 1: EndTime shifted by span", Effect->EffectData.EndTime, 3.5);
+			TestEqual("Episode 1: anchor cleared", Effect->PausedAtActionTimer, -1.0);
+			TestEqual("Episode 1: CurrentDuration continuous", Effect->EffectData.CurrentDuration, 1.0);
+
+			// Episode 2: paused window [2.5, 3.0] — anchor re-latches.
+			AbilityComp->AddActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 3.0;  Effect->Tick(0.5f);
+			TestEqual("Episode 2: anchor re-latched fresh", Effect->PausedAtActionTimer, 2.5);
+			TestEqual("Episode 2: CurrentDuration holds again", Effect->EffectData.CurrentDuration, 1.0);
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 3.5;  Effect->Tick(0.5f);
+			TestEqual("Episode 2: shifts accumulate", Effect->EffectData.EndTime, 4.0);
+			TestEqual("Episode 2: CurrentDuration continuous", Effect->EffectData.CurrentDuration, 1.5);
+
+			// Lifetime = Duration + both paused spans (+ grace): ends at 4.0 + 0.5.
+			AbilityComp->ActionTimer = 4.0;  Effect->Tick(0.5f);
+			TestFalse("Alive until shifted EndTime + grace", Effect->bCompleted);
+			AbilityComp->ActionTimer = 4.5;  Effect->Tick(0.5f);
+			TestTrue("Ends at EndTime + span1 + span2 + grace", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Delay holds while paused: Initialized->Started stalls until unpause", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			// Apply at t=1.0 with Delay=1: StartTime=2.0, EndTime=4.0.
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Delay               = 1.f;
+			Data.Duration            = 2.f;
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+			TestEqual("Delayed effect starts Initialized",
+				static_cast<int>(Effect->CurrentState), static_cast<int>(EGMASEffectState::Initialized));
+
+			// Pause during the delay window and tick past the original StartTime.
+			// Anchor latches at 2.0 - 1.0 = 1.0; StartTime stays put while latched.
+			AbilityComp->AddActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 2.0;  Effect->Tick(1.f);
+			AbilityComp->ActionTimer = 3.0;  Effect->Tick(1.f);
+			TestEqual("Paused: still Initialized past original StartTime",
+				static_cast<int>(Effect->CurrentState), static_cast<int>(EGMASEffectState::Initialized));
+			TestEqual("Paused: StartTime untouched while latched", Effect->EffectData.StartTime, 2.0);
+
+			// Unpause: shift = (4.0 - 1.0) - 1.0 = 2.0 -> StartTime 4.0; the same tick's
+			// CheckState sees ActionTimer reach it and starts the effect.
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 4.0;  Effect->Tick(1.f);
+			TestEqual("Resumed: StartTime shifted by the paused span", Effect->EffectData.StartTime, 4.0);
+			TestEqual("Resumed: delay completes and effect starts",
+				static_cast<int>(Effect->CurrentState), static_cast<int>(EGMASEffectState::Started));
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Replay ticks do not compound the pause shift", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Duration            = 2.f;
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			AbilityComp->AddActiveTag(BurningTag);
+
+			// Replayed moves re-enter Tick — the anchor must NOT latch off rewound state.
+			AbilityComp->bForceReplayingForTest = true;
+			AbilityComp->ActionTimer = 2.0;  Effect->Tick(1.f);
+			TestEqual("Replay: anchor not latched", Effect->PausedAtActionTimer, -1.0);
+			TestEqual("Replay: StartTime unshifted", Effect->EffectData.StartTime, 1.0);
+			TestEqual("Replay: EndTime unshifted",   Effect->EffectData.EndTime,   3.0);
+
+			// Back to live ticking: the anchor latches at the live window start.
+			AbilityComp->bForceReplayingForTest = false;
+			AbilityComp->ActionTimer = 2.5;  Effect->Tick(0.5f);
+			TestEqual("Live: anchor latches after replay", Effect->PausedAtActionTimer, 2.0);
+
+			// Unpause: shift = (3.0 - 0.5) - 2.0 = 0.5.
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 3.0;  Effect->Tick(0.5f);
+			TestEqual("Live: unpause shift applied once", Effect->EffectData.EndTime, 3.5);
+			TestFalse("Effect alive after shifted EndTime moved out of reach", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Combined-move re-execution does not compound the pause shift", [this]()
+		{
+			// GMC clients re-execute a combined move every frame it is extended: same
+			// window, growing DeltaTime, advancing timestamp (CL_ExecuteMove applies the
+			// move's start state and runs ExecuteMove with the accumulated delta). The
+			// server executes that move exactly ONCE with the final delta. Anchor-based
+			// bookkeeping must therefore be a no-op on re-execution; per-tick DeltaTime
+			// accumulation would shift 0.25+0.5+0.75 = 1.5 here instead of 0.75.
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Duration            = 2.f;
+			Data.ClientGraceTime     = 0.5f;  // pinned so expiry math is settings-independent
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			AbilityComp->AddActiveTag(BurningTag);
+
+			// Paused window [2.0, 2.75] executed three times as the move combines:
+			// every re-execution sees the same window start (timestamp - delta = 2.0).
+			AbilityComp->ActionTimer = 2.25;  Effect->Tick(0.25f);
+			AbilityComp->ActionTimer = 2.5;   Effect->Tick(0.5f);
+			AbilityComp->ActionTimer = 2.75;  Effect->Tick(0.75f);
+			TestEqual("Anchor stable across re-executions", Effect->PausedAtActionTimer, 2.0);
+
+			// Unpause on the next move: shift = (3.25 - 0.5) - 2.0 = 0.75 — the real
+			// paused span, applied exactly once.
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 3.25;  Effect->Tick(0.5f);
+			TestEqual("Shift equals the real paused span", Effect->EffectData.EndTime, 3.75);
+			TestEqual("CurrentDuration resumes from the held value", Effect->EffectData.CurrentDuration, 1.5);
+			TestFalse("Effect alive until the shifted EndTime", Effect->bCompleted);
+
+			// Shifted EndTime 3.75 + 0.5 grace -> actual expiry threshold 4.25.
+			AbilityComp->ActionTimer = 4.25;  Effect->Tick(0.5f);
+			TestTrue("Effect ends at shifted EndTime + grace", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+
+	});
+
+	// ── Natural-expiry grace window (PauseEffect) ─────────────────────────
+	// Pause-capable effects (non-empty PauseEffect) end at EndTime + grace instead
+	// of EndTime, with modifiers suppressed during the window. This closes the
+	// latency race where a server-applied pause replicates after the client's copy
+	// already expired: the client's effect is still alive (gameplay-silent) and can
+	// latch. Applied in every net mode so timing matches between standalone and
+	// networked play. Grace is 0 for effects without pause tags — their expiry is
+	// untouched.
+	Describe("Natural-expiry grace window (PauseEffect)", [this]()
+	{
+		It("Effect without pause tags still ends exactly at EndTime", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			FGMCAbilityEffectData Data;
+			Data.EffectType     = EGMASEffectType::Persistent;
+			Data.Duration       = 2.f;
+			Data.ClientGraceTime = 0.5f;  // must be inert without pause tags
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			AbilityComp->ActionTimer = 3.0;  Effect->Tick(1.f);
+			TestTrue("No pause tags: no grace, expires at EndTime", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Infinite-duration pause-capable effect gets no grace window", [this]()
+		{
+			// Duration == 0 means EndTime == StartTime, so without the Duration guard
+			// in NaturalExpiryGrace the suppression window would swallow every tick
+			// from the moment the effect starts. Infinite effects must tick normally.
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			FGMCAbilityEffectData Data;
+			Data.EffectType     = EGMASEffectType::Ticking;
+			Data.Duration       = 0.f;  // infinite
+			Data.ClientGraceTime = 0.5f;
+			Data.PauseEffect.AddTag(BurningTag);
+			Data.Modifiers.Add(MakeHealthMod(-10.f));
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			TestEqual("Infinite effect reports zero grace", Effect->NaturalExpiryGrace(), 0.0);
+
+			// ActionTimer is past EndTime (== StartTime) from the first tick; the
+			// modifier must still apply.
+			AbilityComp->ActionTimer = 2.0;  Effect->Tick(1.f);
+			AbilityComp->ProcessAttributes(true);
+			TestFalse("Infinite effect never expires", Effect->bCompleted);
+			TestEqual("Modifiers keep applying past EndTime == StartTime",
+				AbilityComp->GetAttributeByTag(HealthTag)->Value, 90.f);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Pause-capable effect survives the window and ends at EndTime + grace", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			// Apply at t=1.0: EndTime=3.0, grace 0.5 -> actual expiry threshold 3.5.
+			// Pause-capable (tags declared) but never actually paused.
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Duration            = 2.f;
+			Data.ClientGraceTime     = 0.5f;
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			AbilityComp->ActionTimer = 3.25;  Effect->Tick(1.f);
+			TestFalse("Alive inside the grace window (past EndTime)", Effect->bCompleted);
+
+			AbilityComp->ActionTimer = 3.5;  Effect->Tick(0.25f);
+			TestTrue("Ends at EndTime + grace", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Modifiers are suppressed inside the grace window", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			// Ticking -10/s health drain, applied at t=1.0: EndTime=3.0, threshold 3.5.
+			// Pause-capable (tags declared) but never actually paused.
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Ticking;
+			Data.Duration            = 2.f;
+			Data.ClientGraceTime     = 0.5f;
+			Data.PauseEffect.AddTag(BurningTag);
+			Data.Modifiers.Add(MakeHealthMod(-10.f));
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			// One second of live ticking applies the drain.
+			AbilityComp->ActionTimer = 2.0;  Effect->Tick(1.f);
+			AbilityComp->ProcessAttributes(true);
+			TestEqual("Live tick drains", AbilityComp->GetAttributeByTag(HealthTag)->Value, 90.f);
+
+			// Tick landing in the window applies nothing — the effect's modifier work
+			// stays at Duration's worth even though the object is still alive.
+			AbilityComp->ActionTimer = 3.0;  Effect->Tick(1.f);
+			AbilityComp->ProcessAttributes(true);
+			TestFalse("Still alive in the window", Effect->bCompleted);
+			TestEqual("Window tick is gameplay-silent", AbilityComp->GetAttributeByTag(HealthTag)->Value, 90.f);
+
+			AbilityComp->ActionTimer = 3.5;  Effect->Tick(0.5f);
+			AbilityComp->ProcessAttributes(true);
+			TestTrue("Ends at EndTime + grace", Effect->bCompleted);
+			TestEqual("No drain on the ending tick either", AbilityComp->GetAttributeByTag(HealthTag)->Value, 90.f);
+
+			Effect->RemoveFromRoot();
+		});
+
+		It("Pause latched inside the window saves the effect (the latency race)", [this]()
+		{
+			UGMCAbilityEffect* Effect = NewObject<UGMCAbilityEffect>(GetTransientPackage());
+			Effect->AddToRoot();
+
+			// Apply at t=1.0: EndTime=3.0, grace 0.5. The pause tag lands at t=3.25 —
+			// past EndTime, inside the window. Without the grace this effect would
+			// already be gone and the pause would have nothing to catch.
+			FGMCAbilityEffectData Data;
+			Data.EffectType          = EGMASEffectType::Persistent;
+			Data.Duration            = 2.f;
+			Data.ClientGraceTime     = 0.5f;
+			Data.PauseEffect.AddTag(BurningTag);
+			AbilityComp->ApplyAbilityEffect(Effect, Data);
+
+			AbilityComp->ActionTimer = 2.0;  Effect->Tick(1.f);
+			TestFalse("Alive before the window", Effect->bCompleted);
+
+			AbilityComp->AddActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 3.25;  Effect->Tick(0.25f);
+			TestEqual("Anchor latched inside the window", Effect->PausedAtActionTimer, 3.0);
+
+			// Timing paused: survives well past EndTime + grace.
+			AbilityComp->ActionTimer = 4.0;  Effect->Tick(0.75f);
+			TestFalse("Paused effect survives past EndTime + grace", Effect->bCompleted);
+
+			// Unpause at t=4.25: shift = (4.0 - 3.0) = 1.0 -> EndTime 4.0, threshold 4.5.
+			AbilityComp->RemoveActiveTag(BurningTag);
+			AbilityComp->ActionTimer = 4.25;  Effect->Tick(0.25f);
+			TestEqual("EndTime shifted by the paused span", Effect->EffectData.EndTime, 4.0);
+			TestFalse("Alive until the shifted threshold", Effect->bCompleted);
+
+			AbilityComp->ActionTimer = 4.5;  Effect->Tick(0.25f);
+			TestTrue("Ends at shifted EndTime + grace", Effect->bCompleted);
+
+			Effect->RemoveFromRoot();
+		});
+	});
 }
 
 #endif // WITH_AUTOMATION_WORKER

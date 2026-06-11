@@ -1624,6 +1624,14 @@ void UGMC_AbilitySystemComponent::BuildActiveEffectsSnapshot(TArray<FGMCEffectSn
 		{
 			continue;
 		}
+		
+		// If the effect's timing is currently paused, the pending
+		// StartTime shift hasn't been applied yet, so measure elapsed up to the
+		// pause anchor instead of the live ActionTimer — otherwise the joiner
+		// would see the paused span as consumed duration.
+		const double ElapsedRefTime = Effect->PausedAtActionTimer >= 0.0
+			? Effect->PausedAtActionTimer
+			: ActionTimer;
 
 		FGMCEffectSnapshot Snapshot;
 		Snapshot.EffectClass = Effect->GetClass();
@@ -1632,7 +1640,7 @@ void UGMC_AbilitySystemComponent::BuildActiveEffectsSnapshot(TArray<FGMCEffectSn
 		// the client can rebuild StartTime in its own local clock — preserves
 		// periodic-tick boundary alignment and remaining duration without
 		// exposing the server's absolute clock.
-		Snapshot.TimeSinceStart = ActionTimer - Effect->EffectData.StartTime;
+		Snapshot.TimeSinceStart = ElapsedRefTime - Effect->EffectData.StartTime;
 		Snapshot.Duration = Effect->EffectData.Duration;
 		Snapshot.bServerAuth = Effect->EffectData.bServerAuth;
 		Snapshot.EffectTag = Effect->EffectData.EffectTag;
