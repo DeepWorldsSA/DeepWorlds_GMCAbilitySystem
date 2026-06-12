@@ -7,7 +7,6 @@
 #include "Components/GMCAbilityComponent.h"
 #include "Interfaces/IPluginManager.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Settings/GMASNetworkTimingSettings.h"
 
 #if WITH_EDITOR
 void UGMCAbilityEffect::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
@@ -262,7 +261,8 @@ void UGMCAbilityEffect::Tick(float DeltaTime)
 	// across combined-client-move re-executions and identical on server and client,
 	// so both sides compute the same shift. Skipped during replay: rewound bound tag
 	// state would latch/shift off transient values and corrupt the live anchor.
-	if (EffectData.PauseEffect.IsEmpty() == false
+	if (EffectData.bPauseEffectAffectsDuration
+		&& EffectData.PauseEffect.IsEmpty() == false
 		&& OwnerAbilityComponent && OwnerAbilityComponent->IsReplayingForGMASLogic() == false)
 	{
 		const double WindowStart = OwnerAbilityComponent->ActionTimer - DeltaTime;
@@ -311,18 +311,7 @@ void UGMCAbilityEffect::Tick(float DeltaTime)
 	}
 
 	
-	// Natural-expiry grace window: alive past EndTime purely so a late-replicating
-	// server pause can still catch this effect (see NaturalExpiryGrace). The window
-	// is gameplay-silent for attribute math — suppressing the modifier block below
-	// keeps a Ticking/Periodic effect's applied work at exactly Duration's worth —
-	// while GrantedTags/abilities linger until the actual end. Symmetric on both
-	// sides (same absolute comparison), so no drain-rate divergence. Grace is 0 for
-	// effects without pause tags and in standalone, so their final-tick application
-	// is untouched.
-	const bool bInExpiryGraceWindow = NaturalExpiryGrace() > 0.0
-		&& OwnerAbilityComponent->ActionTimer >= EffectData.EndTime;
-
-	if (!IsPaused() && bInExpiryGraceWindow == false && CurrentState == EGMASEffectState::Started && AttributeDynamicCondition())
+	if (!IsPaused() && CurrentState == EGMASEffectState::Started && AttributeDynamicCondition())
 	{
 		if (EffectData.EffectType == EGMASEffectType::Ticking) {
 		// If there's a period, check to see if it's time to tick
@@ -403,18 +392,16 @@ void UGMCAbilityEffect::Tick(float DeltaTime)
 	}
 	else if (CurrentState == EGMASEffectState::Started
 		&& EffectData.EffectType == EGMASEffectType::Periodic
-		&& IsPaused() == false
-		&& bInExpiryGraceWindow == false
-		&& AttributeDynamicCondition() == false)
+		&& ((IsPaused() && EffectData.bPauseEffectAffectsDuration == false) || AttributeDynamicCondition() == false))
 	{
-		// Period boundaries crossed while the dynamic condition is false are DROPPED,
-		// not deferred — the schedule stays anchored on StartTime, so the next
-		// application happens at the next absolute boundary once the condition holds
-		// again. Log the drops so balance-affecting gaps are visible instead of silent.
-		// Pause is excluded here: paused boundaries are NOT dropped — the timing pause
-		// shifts StartTime on unpause, deferring the whole schedule (logging them as
-		// drops would be false noise). Grace-window suppression is likewise by design
-		// (the effect already did Duration's worth of work).
+		// Period boundaries crossed while the dynamic condition is false — or while
+		// paused without bPauseEffectAffectsDuration — are DROPPED, not deferred: the
+		// schedule stays anchored on StartTime, so the next application happens at the
+		// next absolute boundary once the gate clears. Log the drops so
+		// balance-affecting gaps are visible instead of silent. A pause WITH
+		// bPauseEffectAffectsDuration is excluded: its boundaries are NOT dropped — the
+		// timing pause shifts StartTime on unpause, deferring the whole schedule
+		// (logging them as drops would be false noise).
 		const float CurrentElapsedTime = OwnerAbilityComponent->ActionTimer - EffectData.StartTime;
 		const float PreviousElapsedTime = FMath::Max(CurrentElapsedTime - DeltaTime, 0.f);
 		const int32 SkippedTicks = FMath::TruncToInt(CurrentElapsedTime / EffectData.PeriodicInterval)
@@ -422,8 +409,8 @@ void UGMCAbilityEffect::Tick(float DeltaTime)
 		if (SkippedTicks > 0)
 		{
 			UE_LOG(LogGMCAbilitySystem, Verbose,
-				TEXT("Periodic effect %s dropped %d tick(s) while dynamic condition false (by design — boundaries are not deferred)."),
-				*GetName(), SkippedTicks);
+				TEXT("Periodic effect %s dropped %d tick(s) while %s (by design — boundaries are not deferred)."),
+				*GetName(), SkippedTicks, IsPaused() ? TEXT("paused") : TEXT("dynamic condition false"));
 		}
 	}
 
@@ -481,21 +468,6 @@ void UGMCAbilityEffect::UpdateState(EGMASEffectState State, bool Force)
 bool UGMCAbilityEffect::IsPaused()
 {
 	return DoesOwnerHaveTagFromContainer(EffectData.PauseEffect);
-}
-
-double UGMCAbilityEffect::NaturalExpiryGrace() const
-{
-	// Grace only matters for effects whose natural expiry can race a late-replicating
-	// pause — i.e. effects that declare PauseEffect tags AND have a finite Duration.
-	// Infinite effects (Duration == 0) never naturally expire, so there is nothing to
-	// extend. Everything else keeps the exact-EndTime expiry it has always had.
-	// Applied in every net mode so timing is identical between standalone and
-	// networked play.
-	if (EffectData.PauseEffect.IsEmpty()) { return 0.0; }
-	if (EffectData.Duration == 0) { return 0.0; }
-	return EffectData.ClientGraceTime > 0.f
-		? static_cast<double>(EffectData.ClientGraceTime)
-		: static_cast<double>(GetDefault<UGMASNetworkTimingSettings>()->DefaultClientGraceTime);
 }
 
 bool UGMCAbilityEffect::IsEffectModifiersRegisterInHistory() const
@@ -650,7 +622,7 @@ void UGMCAbilityEffect::CheckState()
 			}
 			break;
 		case EGMASEffectState::Started:
-			if (EffectData.Duration != 0 && OwnerAbilityComponent->ActionTimer >= EffectData.EndTime + NaturalExpiryGrace())
+			if (EffectData.Duration != 0 && OwnerAbilityComponent->ActionTimer >= EffectData.EndTime)
 			{
 				EndEffect();
 			}

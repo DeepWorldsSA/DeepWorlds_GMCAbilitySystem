@@ -117,11 +117,6 @@ struct FGMCAbilityEffectData
 	// effect is removed: both client and server arm EndAtActionTimer = ActionTimer + this value so
 	// each side ends on the same logical move tick.
 	//
-	// Also sizes the natural expiry grace window for effects with PauseEffect tags: those end
-	// at EndTime + Grace instead of EndTime (modifiers suppressed during the window), so a
-	// server-applied pause that replicates within the window can still catch the effect
-	// before the client discards it. See UGMCAbilityEffect::NaturalExpiryGrace().
-	//
 	// Sentinel semantics: 0 means "use the project-wide default" from
 	// `UGMASNetworkTimingSettings::DefaultClientGraceTime` (Project Settings → GMC Ability System →
 	// Network Timing, default 0.5s — sized for typical RTT + jitter + one server tick at 30 Hz).
@@ -177,19 +172,26 @@ struct FGMCAbilityEffectData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	FGameplayTagContainer GrantedAbilities;
 
-	// If tag is present, this effect will not tick and its time pauses.
-	// - Start Delay WILL pause
-	// - While Paused, TickEvent() WILL to run, use IsPaused() where needed.
+	// If tag is present, this effect will not tick.
+	// - While Paused, TickEvent() WILL run, use IsPaused() where needed.
 	// - While Paused, PeriodTick() WILL NOT run.
-	// - Persistent modifiers WILL persist while pause
-	// - Ticking and Periodic effects WILL NOT advance; will resume where they left off
+	// - Persistent modifiers WILL persist while paused.
 	//
-	// An Effect with PauseEffect declared will gain a grace window (see ClientGraceTime): 
-	// they survive until EndTime + Grace with modifiers suppressed, so a pause landing
-	// within replication latency of EndTime can still catch the effect on the
-	// client instead of racing its local expiry.
+	// Whether pausing also pauses the effect's TIME (Delay/Duration/periodic schedule)
+	// is controlled by bPauseEffectAffectsDuration below.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
 	FGameplayTagContainer PauseEffect;
+
+	// When true, pausing also pauses the effect's time: Start Delay, Duration and
+	// CurrentDuration stop advancing and Ticking Effects stop firing while paused,
+	// resuming where they left off (StartTime/EndTime are shifted forward by the
+	// paused span on unpause — see UGMCAbilityEffect::PausedAtActionTimer).
+	//
+	// When false (default), pause only suppresses ticking: time keeps advancing, the
+	// effect still expires at its original EndTime, and Ticking Effects that would
+	// have fired while paused are skipped.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
+	bool bPauseEffectAffectsDuration = false;
 
 	// On activation, will end ability present in this container
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GMCAbilitySystem")
@@ -358,13 +360,6 @@ public:
 
 	virtual bool IsPaused();
 
-	// Natural-expiry grace window (seconds) for this effect: effects with PauseEffect
-	// tags end at EndTime + this value (with modifiers suppressed during the window)
-	// so a late-replicating server pause can still catch them.
-	// 0 for effects without pause tags or without a finite Duration (infinite effects
-	// never naturally expire, so there is nothing to extend) — those are unchanged.
-	double NaturalExpiryGrace() const;
-
 	bool IsEffectModifiersRegisterInHistory() const;
 	
 	float ProcessCustomModifier(const TSubclassOf<UGMCAttributeModifierCustom_Base>& MCClass, const FAttribute* attribute);
@@ -383,7 +378,8 @@ public:
 	// Validated (real EndEffect runs) or Timeout (OLD is revived).
 	bool bPendingDeathBySuccessor = false;
 
-	// Absolute ActionTimer anchor for the timing pause (PauseEffect tags).
+	// Absolute ActionTimer anchor for the timing pause (PauseEffect tags with
+	// bPauseEffectAffectsDuration). Stays -1.0 when bPauseEffectAffectsDuration is false.
 	// -1.0 = timing not paused. Latched ONCE to the current move window's start
 	// (ActionTimer - DeltaTime) when a pause is first observed; consumed on unpause by
 	// shifting StartTime/EndTime forward by the paused span. The window start is
