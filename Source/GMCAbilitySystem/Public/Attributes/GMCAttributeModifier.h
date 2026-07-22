@@ -37,6 +37,8 @@ enum class EModifierType : uint8
 	// Set the attribute to an absolute value AND ignore any Add modifiers placed before this Set's ActionTimer.
 	// Adds placed AFTER the Set still stack on top. Use for "reset state" semantics (revive, mode override).
 	SetReplace UMETA(DisplayName = "= [Set Replace] (clears prior Add modifiers)"),
+	AddPercentageOfBase UMETA(DisplayName = "% [Add Percentage Of Base] (Set base or RawValue, applied at calc time)",
+		ToolTip = "Adds Value% of the attribute's resolved base layer (the winning Set value, or RawValue when no Set is active). Resolved inside CalculateValue after the base layer and before flat Adds: never reads a stale value, safe to target the same attribute. Keep this entry last: serialized by value in effect assets."),
 };
 
 UENUM(BlueprintType)
@@ -45,6 +47,7 @@ enum class EGMCAttributeModifierType : uint8
 	AMT_Value UMETA(DisplayName = "Value", ToolTip = "Raw Value"),
 	AMT_Attribute UMETA(DisplayName = "Attribute", ToolTip = "Attribute that will be used to calculate the value"),
 	AMT_Custom UMETA(DisplayName = "Custom", ToolTip = "Custom modifier class that will be used to calculate the value"),
+	AMT_External UMETA(DisplayName = "External", ToolTip = "Value asked to the owner ASC via GetExternalModifierValue (game-provided, e.g. skill loadout). Keep this entry last: serialized by value in effect assets."),
 };
 
 UENUM(BlueprintType)
@@ -87,6 +90,14 @@ struct FGMCModifierCondition
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Condition",
 		meta=(EditCondition = "Action == EGMCModifierConditionAction::OverrideValue && ValueType == EGMCAttributeModifierType::AMT_Custom", EditConditionHides))
 	TSubclassOf<UGMCAttributeModifierCustom_Base> CustomModifierClass {nullptr};
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Condition",
+		meta=(EditCondition = "Action == EGMCModifierConditionAction::OverrideValue && ValueType == EGMCAttributeModifierType::AMT_External", EditConditionHides))
+	FGameplayTag ExternalTag;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Condition",
+		meta=(ClampMin = "0", EditCondition = "Action == EGMCModifierConditionAction::OverrideValue && ValueType == EGMCAttributeModifierType::AMT_External", EditConditionHides))
+	int32 ExternalValueIndex {0};
 };
 
 USTRUCT(BlueprintType)
@@ -110,6 +121,10 @@ struct FGMCAttributeModifier
 		void InitModifier(UGMCAbilityEffect* Effect, double InActionTimer, int InApplicationIdx, bool bInRegisterInHistory = false, float
 		                  InDeltaTime = 1.f);
 		
+		// Declared first: the op is the row's headline in the details panel.
+		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "GMCAbilitySystem")
+		EModifierType Op{EModifierType::Add};
+
 		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Attribute", meta = (Categories="Attribute"))
 		FGameplayTag AttributeTag;
 
@@ -120,6 +135,15 @@ struct FGMCAttributeModifier
 			EditCondition = "ValueType == EGMCAttributeModifierType::AMT_Attribute || Op == EModifierType::AddPercentageAttribute || Op == EModifierType::AddPercentageOfAttributeRawValue",
 			DisplayAfter = "ValueType"))
 		FGameplayTag ValueAsAttribute;
+
+		// Key passed to UGMC_AbilitySystemComponent::GetExternalModifierValue (game-defined meaning).
+		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Attribute",
+			meta=(EditCondition = "ValueType == EGMCAttributeModifierType::AMT_External", EditConditionHides, DisplayAfter = "ValueType"))
+		FGameplayTag ExternalTag;
+
+		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Attribute",
+			meta=(ClampMin = "0", EditCondition = "ValueType == EGMCAttributeModifierType::AMT_External", EditConditionHides, DisplayAfter = "ExternalTag"))
+		int32 ExternalValueIndex {0};
 	
 		UPROPERTY(Transient)
 		TWeakObjectPtr<UGMCAbilityEffect> SourceAbilityEffect{nullptr};
@@ -132,9 +156,6 @@ struct FGMCAttributeModifier
 		double ActionTimer {0.0};
 
 		int ApplicationIndex{0};
-
-		UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "GMCAbilitySystem")
-		EModifierType Op{EModifierType::Add};
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "GMCAbilitySystem",
 		meta=(DisplayAfter = "ValueType", EditConditionHides, EditCondition = "ValueType == EGMCAttributeModifierType::AMT_Custom"))

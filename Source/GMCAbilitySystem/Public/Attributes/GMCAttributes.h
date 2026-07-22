@@ -24,6 +24,7 @@ struct FModifierHistoryEntry
 
 // How a temporal modifier participates in CalculateValue. Stored alongside the entry so the value pipeline
 // can layer Sets and Adds in the right order without re-querying the source modifier's Op every frame.
+// Fixed application order: base layer (Set winner or RawValue) -> PercentOfBase entries -> flat Adds.
 UENUM()
 enum class EAttributeModifierKind : uint8
 {
@@ -34,6 +35,9 @@ enum class EAttributeModifierKind : uint8
 	// Absolute value override. Wins over RawValue as the base layer. Active Adds placed BEFORE this entry's
 	// ActionTimer are filtered out — only Adds placed afterwards stack on top. Used for "reset state" semantics.
 	SetReplace,
+	// Fraction of the resolved base layer, applied at calc time (Value stores the fraction, not a delta).
+	// Resolved AFTER the base layer and BEFORE flat Adds — never reads a stale Value, no feedback loop.
+	PercentOfBase,
 };
 
 USTRUCT(Blueprintable)
@@ -135,6 +139,9 @@ struct GMCABILITYSYSTEM_API FAttribute : public FFastArraySerializerItem
 	FAttributeClamp Clamp{};
 
 	FString ToString() const;
+
+	// Multi-line debug dump: RawValue, clamp, each temporal entry (kind / value / instigator), final Value.
+	FString DumpDebugString() const;
 
 	bool IsDirty() const
 	{

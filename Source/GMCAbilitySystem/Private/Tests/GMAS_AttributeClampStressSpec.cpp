@@ -482,6 +482,70 @@ void FGMASAttributeClampStressSpec::Define()
 			TestEqual("Pinned to -1 from below", C.ClampValue(-100.f), -1.f);
 		});
 	});
+
+	// ─── AddPercentageOfBase (deferred, resolved in CalculateValue) ─────────
+	Describe("PercentOfBase layering", [this]()
+	{
+		It("Percent of RawValue base when no Set is active", [this]()
+		{
+			UGMCAbilityEffect* E = SpawnEffect();
+			FAttribute A = MakeClamped(300.f, 0.f, 1000.f);
+			FGMCAttributeModifier P; P.Op = EModifierType::AddPercentageOfBase; P.ValueType = EGMCAttributeModifierType::AMT_Value;
+			P.ModifierValue = 10.f; P.DeltaTime = 1.f; P.bRegisterInHistory = true;
+			P.SourceAbilityEffect = E; P.ApplicationIndex = 1; P.ActionTimer = 1.0;
+			A.AddModifier(P); A.CalculateValue();
+			TestEqual("300 + 10% of base = 330", A.Value, 330.f);
+			E->RemoveFromRoot();
+		});
+		It("Percent applies on the Set base, flat Add stacks after", [this]()
+		{
+			UGMCAbilityEffect* E = SpawnEffect();
+			FAttribute A = MakeClamped(300.f, 0.f, 1000.f);
+			FGMCAttributeModifier S; S.Op = EModifierType::Set; S.ValueType = EGMCAttributeModifierType::AMT_Value;
+			S.ModifierValue = 504.f; S.DeltaTime = 1.f; S.bRegisterInHistory = true;
+			S.SourceAbilityEffect = E; S.ApplicationIndex = 1; S.ActionTimer = 1.0;
+			FGMCAttributeModifier P; P.Op = EModifierType::AddPercentageOfBase; P.ValueType = EGMCAttributeModifierType::AMT_Value;
+			P.ModifierValue = 10.f; P.DeltaTime = 1.f; P.bRegisterInHistory = true;
+			P.SourceAbilityEffect = E; P.ApplicationIndex = 2; P.ActionTimer = 1.0;
+			FGMCAttributeModifier F; F.Op = EModifierType::Add; F.ValueType = EGMCAttributeModifierType::AMT_Value;
+			F.ModifierValue = 20.f; F.DeltaTime = 1.f; F.bRegisterInHistory = true;
+			F.SourceAbilityEffect = E; F.ApplicationIndex = 3; F.ActionTimer = 1.0;
+			A.AddModifier(P); A.AddModifier(F); A.AddModifier(S); // out of order on purpose
+			A.CalculateValue();
+			TestEqual("504 * 1.10 + 20 = 574.4 (order-independent)", A.Value, 574.4f);
+			E->RemoveFromRoot();
+		});
+		It("Two percents sum on the frozen base, never compound", [this]()
+		{
+			UGMCAbilityEffect* E = SpawnEffect();
+			FAttribute A = MakeClamped(300.f, 0.f, 1000.f);
+			FGMCAttributeModifier S; S.Op = EModifierType::Set; S.ValueType = EGMCAttributeModifierType::AMT_Value;
+			S.ModifierValue = 504.f; S.DeltaTime = 1.f; S.bRegisterInHistory = true;
+			S.SourceAbilityEffect = E; S.ApplicationIndex = 1; S.ActionTimer = 1.0;
+			A.AddModifier(S);
+			for (int Index = 0; Index < 2; ++Index)
+			{
+				FGMCAttributeModifier P; P.Op = EModifierType::AddPercentageOfBase; P.ValueType = EGMCAttributeModifierType::AMT_Value;
+				P.ModifierValue = 10.f; P.DeltaTime = 1.f; P.bRegisterInHistory = true;
+				P.SourceAbilityEffect = E; P.ApplicationIndex = 2 + Index; P.ActionTimer = 1.0;
+				A.AddModifier(P);
+			}
+			A.CalculateValue();
+			TestEqual("504 * 1.20 = 604.8 (sum, not compound)", A.Value, 604.8f);
+			E->RemoveFromRoot();
+		});
+		It("PercentOfBase entry is never picked as the Set winner", [this]()
+		{
+			UGMCAbilityEffect* E = SpawnEffect();
+			FAttribute A = MakeClamped(300.f, 0.f, 1000.f);
+			FGMCAttributeModifier P; P.Op = EModifierType::AddPercentageOfBase; P.ValueType = EGMCAttributeModifierType::AMT_Value;
+			P.ModifierValue = 10.f; P.DeltaTime = 1.f; P.bRegisterInHistory = true;
+			P.SourceAbilityEffect = E; P.ApplicationIndex = 1; P.ActionTimer = 5.0; // newer than any Set
+			A.AddModifier(P); A.CalculateValue();
+			TestEqual("Base stays RawValue (300), not the fraction", A.Value, 330.f);
+			E->RemoveFromRoot();
+		});
+	});
 }
 
 #endif // WITH_AUTOMATION_WORKER

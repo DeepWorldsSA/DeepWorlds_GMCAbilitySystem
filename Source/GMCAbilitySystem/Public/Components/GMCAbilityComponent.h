@@ -728,6 +728,11 @@ public:
 	UFUNCTION(BlueprintPure, Category="GMAS|Attributes")
 	float GetAttributeValueByTag(UPARAM(meta=(Categories="Attribute"))FGameplayTag AttributeTag) const;
 
+	// Value source for AMT_External modifiers. Game code overrides this (e.g. per-pawn skill
+	// loadout). The returned value must be identical on server and owning client and stable
+	// during a move, or prediction replays diverge. Base returns 0: an unwired modifier is a no-op.
+	virtual float GetExternalModifierValue(const FGameplayTag& ExternalTag, int32 ValueIndex) const { return 0.f; }
+
 	// Get Attribute Value without Temporal Modifiers
 	// his value is replicated on simulated proxy !
 	UFUNCTION(BlueprintPure, Category="GMAS|Attributes")

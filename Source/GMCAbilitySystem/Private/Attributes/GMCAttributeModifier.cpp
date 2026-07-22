@@ -32,6 +32,13 @@ float FGMCAttributeModifier::GetValue() const
 			UE_LOG(LogGMCAbilitySystem, Error, TEXT("CustomModifierClass is null or SourceAbilityEffect/SourceAbilitySystemComponent is invalid in FAttribute::AddModifier"));
 		}
 		break;
+	case EGMCAttributeModifierType::AMT_External:
+		if (SourceAbilityEffect.IsValid() && SourceAbilityEffect->GetOwnerAbilityComponent())
+		{
+			return SourceAbilityEffect->GetOwnerAbilityComponent()->GetExternalModifierValue(ExternalTag, ExternalValueIndex);
+		}
+		UE_LOG(LogGMCAbilitySystem, Error, TEXT("SourceAbilityEffect/SourceAbilitySystemComponent is invalid for AMT_External in FGMCAttributeModifier::GetValue"));
+		return 0.f;
 	}
 
 	checkNoEntry()
@@ -69,6 +76,7 @@ float FGMCAttributeModifier::CalculateModifierValue(const FAttribute& Attribute)
 		case EModifierType::AddPercentageMinClamp:
 		case EModifierType::AddPercentageMaxClamp:
 		case EModifierType::AddPercentageOfAttributeRawValue:
+		case EModifierType::AddPercentageOfBase:
 			TargetValue /= 100.f;
 		break;
 	}
@@ -127,6 +135,10 @@ float FGMCAttributeModifier::CalculateModifierValue(const FAttribute& Attribute)
 			// Absolute value, no DeltaTime scaling. The two Set variants share the same payload (a target value);
 			// they differ only in how FAttribute::CalculateValue treats the surrounding Add modifiers.
 			return TargetValue;
+		case EModifierType::AddPercentageOfBase:
+			// Returns the FRACTION only. FAttribute::CalculateValue multiplies it by the resolved
+			// base layer at calc time (deferred: the base is not knowable here without a stale read).
+			return TargetValue * DeltaTime;
 	}
 
 	UE_LOG(LogGMCAbilitySystem, Error, TEXT("Unknown Modifier Type in FAttribute::AddModifier for Attribute %s, operator %d"), *Attribute.Tag.ToString(), static_cast<int32>(Op));
@@ -156,6 +168,8 @@ bool FGMCAttributeModifier::ResolveConditions(const UGMC_AbilitySystemComponent*
 			ModifierValue       = Rule.ModifierValue;
 			ValueAsAttribute    = Rule.ValueAsAttribute;
 			CustomModifierClass = Rule.CustomModifierClass;
+			ExternalTag         = Rule.ExternalTag;
+			ExternalValueIndex  = Rule.ExternalValueIndex;
 			return true; // first match wins -> apply with the overridden value source
 		}
 	}
