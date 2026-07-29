@@ -3195,8 +3195,12 @@ UGMCAbilityEffect* UGMC_AbilitySystemComponent::ApplyAbilityEffect(UGMCAbilityEf
 	{
 		for (const TPair<int, UGMCAbilityEffect*>& Existing : ActiveEffects)
 		{
+			// bCompleted entries linger in ActiveEffects until the next TickActiveEffects cleanup pass.
+			// They own nothing — tags and modifiers were already released by EndEffect — so counting one
+			// as the live holder of the tag rejects a same-tick reapply and leaves the tag on nobody.
 			if (!Existing.Value
 				|| Existing.Value == Effect
+				|| Existing.Value->bCompleted
 				|| !Existing.Value->EffectData.EffectTag.IsValid()
 				|| !Existing.Value->EffectData.EffectTag.MatchesTagExact(InitializationData.EffectTag))
 			{
