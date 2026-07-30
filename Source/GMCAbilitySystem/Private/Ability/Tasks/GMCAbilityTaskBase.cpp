@@ -14,6 +14,11 @@ void UGMCAbilityTaskBase::Activate()
 	// just before its first heartbeat round-trip completes is not cancelled prematurely.
 	LastHeartbeatReceivedTime = FPlatformTime::Seconds() + HeartbeatMaxInterval;
 
+	// Seed the send-stamp too, so the first client heartbeat waits one full interval. A heartbeat
+	// sent on the activation tick can beat the server twin into existence, which reads as a
+	// phantom AbilityID divergence. The server already holds one grace interval, so waiting is safe.
+	ClientLastHeartbeatSentTime = FPlatformTime::Seconds();
+
 	// [TaskDiag] probe: a task registered DURING a client replay is created on the client
 	// ONLY (the server never replays), so the per-ability TaskIDCounter diverges from here
 	// on — every later task on this ability gets mismatched IDs, Progress payloads dispatch
