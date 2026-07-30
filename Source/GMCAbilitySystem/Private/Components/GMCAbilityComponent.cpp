@@ -1887,6 +1887,20 @@ void UGMC_AbilitySystemComponent::SendTaskDataToActiveAbility(bool bFromMovement
 		}
 		else if (!ActiveAbilities.Contains(TaskDataFromInstance.AbilityID))
 		{
+			// Benign double dispatch: TaskData is cleared only at the end of AncillaryTick, so the
+			// movement pass consumes the payload, CleanupStaleAbilities then removes the ended
+			// ability, and the ancillary pass sees the same payload again. Nothing is lost.
+			// Checked HERE and not at function entry on purpose: GenerateAbilityID() derives from
+			// ActionTimer and can recycle an ID, so an early return would drop a valid payload
+			// belonging to a NEW ability whose ID still sits in the recently-ended ring.
+			if (WasAbilityRecentlyEnded(TaskDataFromInstance.AbilityID))
+			{
+				UE_LOG(LogGMCAbilitySystem, Verbose,
+					TEXT("[TaskDiag] Progress payload for already-ended AbilityID=%d (TaskID=%d) ignored (consumed on the other dispatch pass)."),
+					TaskDataFromInstance.AbilityID, TaskDataFromInstance.TaskID);
+				return;
+			}
+
 			// [TaskDiag] probe: a valid Progress payload addressed an AbilityID this side does
 			// not have — the payload is silently lost and the addressed task (on the sender's
 			// side or on our twin instance) will never progress. Fires from both the movement
