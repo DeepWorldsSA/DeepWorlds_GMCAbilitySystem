@@ -122,9 +122,19 @@ void FGMASBoundQueueV2::GenPreLocalMoveExecution()
 			// passes on the receiving end -- sending only the base struct
 			// causes the op to be silently dropped server-side.
 			const int OperationIDToProcess = ClientQueuedOperations.Pop();
-			OperationData = OperationPayloads.Contains(OperationIDToProcess)
-				? OperationPayloads[OperationIDToProcess]
-				: FInstancedStruct::Make<FGMASBoundQueueV2OperationBaseData>();
+			if (const FInstancedStruct* Payload = OperationPayloads.Find(OperationIDToProcess))
+			{
+				OperationData = *Payload;
+			}
+			else
+			{
+				// ClearStaleOperationData expired the payload before the queue drained it. The op
+				// ships as an empty base struct, so the server discards it and the input is lost.
+				UE_LOG(LogGMCAbilitySystem, Warning,
+					TEXT("Dropped client operation %d: payload expired after %d moves (queue depth %d, move %lld). The activation never reaches the server."),
+					OperationIDToProcess, GMCMovementComponent->MoveHistoryMaxSize, ClientQueuedOperations.Num(), GMCMoveCounter);
+				OperationData = FInstancedStruct::Make<FGMASBoundQueueV2OperationBaseData>();
+			}
 			return;
 		}
 
@@ -141,6 +151,12 @@ void FGMASBoundQueueV2::GenPreLocalMoveExecution()
 			if (OperationPayloads.Contains(OpID))
 			{
 				Batch.SubOperationIDs.Add(OpID);
+			}
+			else
+			{
+				UE_LOG(LogGMCAbilitySystem, Warning,
+					TEXT("Dropped batched operation %d: payload expired after %d moves (move %lld)."),
+					OpID, GMCMovementComponent->MoveHistoryMaxSize, GMCMoveCounter);
 			}
 		}
 		ClientQueuedOperations.Reset();
