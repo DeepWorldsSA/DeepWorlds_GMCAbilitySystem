@@ -524,29 +524,30 @@ void UGMCAbility::FinishEndAbility() {
 		Task->EndTaskGMAS();
 	}
 
-	// End handled effect
+	// End handled effect.
+	// Predicted's Safe path ensure-rejects outside a GMC tick. Remap to PredictedQueued only when
+	// called from an RPC handler (outside any tick); inside a tick, Predicted removes immediately
+	// with no delay. The state cannot change inside this call, so it is read once.
+	const bool bInsideGMCTick = OwnerAbilityComponent
+		&& ((OwnerAbilityComponent->GMCMovementComponent && OwnerAbilityComponent->GMCMovementComponent->IsExecutingMove())
+			|| OwnerAbilityComponent->IsInAncillaryTick()
+			|| OwnerAbilityComponent->GetNetMode() == NM_Standalone);
+
 	for (const auto& EfData : DeclaredEffect)
 	{
 		// Skip Auth effect removal on client
 		if (EfData.Value == EGMCAbilityEffectQueueType::ServerAuth && !OwnerAbilityComponent->HasAuthority())  { continue;}
+
+		const EGMCAbilityEffectQueueType QueueType =
+			(EfData.Value == EGMCAbilityEffectQueueType::Predicted && !bInsideGMCTick)
+				? EGMCAbilityEffectQueueType::PredictedQueued
+				: EfData.Value;
 
 		if (UGMCAbilityEffect* Effect =	OwnerAbilityComponent->GetEffectById(EfData.Key))
 		{
 			// Don't try to close effects that are already ended
 			if (Effect->CurrentState == EGMASEffectState::Started)
 			{
-				// Predicted's Safe path ensure-rejects outside a GMC tick. Remap to
-				// PredictedQueued only when called from an RPC handler (outside any
-				// tick); inside a tick, Predicted removes immediately with no delay.
-				const bool bInsideGMCTick =
-					(OwnerAbilityComponent->GMCMovementComponent && OwnerAbilityComponent->GMCMovementComponent->IsExecutingMove())
-					|| OwnerAbilityComponent->IsInAncillaryTick()
-					|| OwnerAbilityComponent->GetNetMode() == NM_Standalone;
-
-				const EGMCAbilityEffectQueueType QueueType =
-					(EfData.Value == EGMCAbilityEffectQueueType::Predicted && !bInsideGMCTick)
-						? EGMCAbilityEffectQueueType::PredictedQueued
-						: EfData.Value;
 				OwnerAbilityComponent->RemoveActiveAbilityEffectSafe(Effect, QueueType);
 			}
 			else
@@ -554,17 +555,25 @@ void UGMCAbility::FinishEndAbility() {
 				UE_LOG(LogGMCAbilitySystem, Warning, TEXT("Effect Handle %d already ended for ability %s"), EfData.Key, *AbilityTag.ToString());
 			}
 		}
+		else if (const FGameplayTag* DeclaredTag = DeclaredEffectTags.Find(EfData.Key))
+		{
+			// The id no longer resolves: a replay re-created this effect under a server id the ability
+			// never learned. Reaching it by tag is the only way left. Without this the instance is
+			// orphaned, and a Persistent effect keeps granting its tags for the rest of the life --
+			// the weapon stays in ADS and the reload is refused after a revive.
+			// One instance only: another ability may legitimately own a second one.
+			const int32 Removed = OwnerAbilityComponent->RemoveEffectByTagSafe(*DeclaredTag, 1, QueueType);
+			UE_LOG(LogGMCAbilitySystem, Warning,
+				TEXT("[EffectLeak] Declared effect id %d no longer resolves for ability %s. Removed %d instance(s) by tag %s."),
+				EfData.Key, *AbilityTag.ToString(), Removed, *DeclaredTag->ToString());
+		}
 	}
 
-	// Chain hooks: apply / remove effects when this ability ends. Same queue-type detection as
-	// the DeclaredEffect removal block above — Predicted requires being inside a GMC tick or
+	// Chain hooks: apply / remove effects when this ability ends. Reuses bInsideGMCTick from the
+	// DeclaredEffect removal block above — Predicted requires being inside a GMC tick or
 	// Standalone, otherwise PredictedQueued is used to defer until the next safe window.
 	if (OwnerAbilityComponent && (ApplyEffectOnEnd.Num() > 0 || !RemoveEffectOnEnd.IsEmpty()))
 	{
-		const bool bInsideGMCTick =
-			(OwnerAbilityComponent->GMCMovementComponent && OwnerAbilityComponent->GMCMovementComponent->IsExecutingMove())
-			|| OwnerAbilityComponent->IsInAncillaryTick()
-			|| OwnerAbilityComponent->GetNetMode() == NM_Standalone;
 		const EGMCAbilityEffectQueueType ChainQueueType =
 			bInsideGMCTick ? EGMCAbilityEffectQueueType::Predicted : EGMCAbilityEffectQueueType::PredictedQueued;
 
@@ -608,6 +617,19 @@ void UGMCAbility::DeclareEffect(int OutEffectHandle, EGMCAbilityEffectQueueType 
 		return;
 	}
 	DeclaredEffect.Add(OutEffectHandle, EffectType);
+
+	// Cache the tag now, while the id still resolves. FinishEndAbility needs it to reach the effect
+	// after a replay renumbered it.
+	if (OwnerAbilityComponent)
+	{
+		if (const UGMCAbilityEffect* Effect = OwnerAbilityComponent->GetEffectById(OutEffectHandle))
+		{
+			if (Effect->EffectData.EffectTag.IsValid())
+			{
+				DeclaredEffectTags.Add(OutEffectHandle, Effect->EffectData.EffectTag);
+			}
+		}
+	}
 }
 
 bool UGMCAbility::PreBeginAbility()

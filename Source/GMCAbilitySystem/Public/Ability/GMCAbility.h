@@ -330,6 +330,10 @@ public:
 	
 	TMap<int, EGMCAbilityEffectQueueType> DeclaredEffect;
 
+	// EffectTag of each declared effect, kept as a fallback key. A replay rebuilds ActiveEffects from
+	// the server snapshot under new ids, so the declared id alone can stop resolving.
+	TMap<int, FGameplayTag> DeclaredEffectTags;
+
 		// Queries
 	UPROPERTY(EditDefaultsOnly, Category = "GMCAbilitySystem", meta=(DisplayName="Activation Tags Query"))
 	// query must match at activation
