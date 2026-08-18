@@ -277,6 +277,10 @@ public:
 	// Returns true if the server has confirmed this ability activation.
 	bool IsServerConfirmed() const { return bServerConfirmed; }
 
+	// Local activation time, in ActionTimer units. Diagnostics only: subtract it from the
+	// component's ActionTimer to age an instance that is holding a gate.
+	float GetClientStartTime() const { return ClientStartTime; }
+
 protected:
 
 	// How long to wait for server to confirm ability before cancelling on client

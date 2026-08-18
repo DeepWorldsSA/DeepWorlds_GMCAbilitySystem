@@ -107,10 +107,13 @@ void UGMCAbilityTaskBase::AncillaryTick(float DeltaTime){
 		// when the client stops heartbeating, every task starves at once, so what matters is
 		// the whole-ability picture (which tasks had completed, which never progressed,
 		// heartbeat counts per task) plus whether the timed-out task was even still pending.
-		UE_LOG(LogTemp, Error, TEXT("[TaskHeartbeat] Timeout: cancelling ability '%s' (tag '%s') - task %s (TaskID %d, Completed=%d), %.2fs since last heartbeat (max %.2f), %d heartbeats received. %s"),
+		// last_taskdata_ability_id is the id the OTHER side was addressing. When it differs from
+		// this ability's own id, the starvation is an id divergence and the line proves it alone.
+		UE_LOG(LogTemp, Error, TEXT("[TaskHeartbeat] Timeout: cancelling ability '%s' (tag '%s') - task %s (TaskID %d, Completed=%d), %.2fs since last heartbeat (max %.2f), %d heartbeats received, last_taskdata_ability_id=%d. %s"),
 		  *Ability->GetName(), *Ability->AbilityTag.ToString(), *GetClass()->GetName(), TaskID,
 		  bTaskCompleted ? 1 : 0,
 		  TimeSinceLastHeartbeat, HeartbeatMaxInterval, HeartbeatReceivedCount,
+		  AbilitySystemComponent->GetLastReceivedTaskDataAbilityID(),
 		  *Ability->GetAbilityCutDiagnostics());
 		AbilitySystemComponent->OnTaskTimeout.Broadcast(Ability->AbilityTag);
 		Ability->EndAbility();

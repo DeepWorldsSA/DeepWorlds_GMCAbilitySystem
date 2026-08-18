@@ -490,6 +490,11 @@ public:
 	
 	void QueueTaskData(const FInstancedStruct& TaskData);
 
+	// AbilityID carried by the last TaskData this component received, whatever became of it.
+	// Diagnostics only: the task heartbeat watchdog reports it so the line that announces the kill
+	// also names the id the other side was addressing — a mismatch is the divergence itself.
+	int GetLastReceivedTaskDataAbilityID() const { return LastReceivedTaskDataAbilityID; }
+
 	// Set an ability cooldown
 	// If it's already on cooldown, subsequent calls will overwrite it
 	UFUNCTION(BlueprintCallable, Category = "GMCAbilitySystem")
@@ -1045,6 +1050,34 @@ private:
 	TArray<int> RecentlyEndedAbilityIDs;
 	void NoteAbilityEnded(int AbilityID);
 	bool WasAbilityRecentlyEnded(int AbilityID) const { return RecentlyEndedAbilityIDs.Contains(AbilityID); }
+
+	// Bounded ring of activation OperationIDs this side has already consumed. Deliberately NOT
+	// a bound variable: a replayed move re-delivers its stored operation (the bound operation
+	// slot IS rewound), and this ring is the only memory that survives the rewind.
+	//
+	// ActiveAbilities alone cannot tell "this op already ran" from "it ran and already ended".
+	// In the second case the replay used to re-activate the operation into a brand-new instance
+	// with the same AbilityID while the remote side still held the original one — a phantom the
+	// other side never has. Its task payloads are then addressed to an id nobody knows, the
+	// remote twin starves, and its heartbeat watchdog kills the legitimate ability.
+	//
+	// Consequence to accept: an ability that already ended is not re-run on replay, so its
+	// effects are not reproduced. That is already true of every ended ability (an ability is
+	// not rewindable) and it is strictly better than running a second, different instance.
+	//
+	// Capacity covers far more than GMC's move history at the observed activation rate.
+	static constexpr int32 ConsumedActivationOperationIDsCapacity = 128;
+	TArray<int> ConsumedActivationOperationIDs;
+	void NoteActivationOperationConsumed(int OperationID);
+	bool WasActivationOperationConsumed(int OperationID) const { return ConsumedActivationOperationIDs.Contains(OperationID); }
+
+	// Renders the operation an AbilityID came from, for the [TaskDiag] lines. Returns
+	// "op=unattributed" when nothing corroborates the decode — a fallback AbilityID carries no
+	// operation, and its quotient would name one that never existed.
+	FString DescribeSourceOperation(int AbilityID) const;
+
+	// Backing field of GetLastReceivedTaskDataAbilityID. Set on every received TaskData.
+	int LastReceivedTaskDataAbilityID = 0;
 
 
 	// Set Attributes to either a default object or a provided TSubClassOf<UGMCAttributeSet> in BP defaults
