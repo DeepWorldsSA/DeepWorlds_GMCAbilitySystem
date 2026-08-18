@@ -3435,6 +3435,12 @@ TArray<int> UGMC_AbilitySystemComponent::EffectsMatchingTag(const FGameplayTag& 
 			break;
 		}
 		
+		// GC nulls the map value when the effect object becomes garbage during world teardown.
+		// The entry stays until the next TickActiveEffects cleanup pass.
+		if(!IsValid(Effect.Value)){
+			continue;
+		}
+		
 		if(Effect.Value->EffectData.EffectTag.IsValid() && Effect.Value->EffectData.EffectTag.MatchesTagExact(Tag)){
 			EffectsToRemove.Add(Effect.Value->EffectData.EffectID);
 			NumRemoved++;
@@ -3658,6 +3664,7 @@ int32 UGMC_AbilitySystemComponent::GetNumEffectByTag(FGameplayTag InEffectTag){
 	if(!InEffectTag.IsValid()) return -1;
 	int32 Count = 0;
 	for (const TTuple<int, UGMCAbilityEffect*> Effect : ActiveEffects){
+		if(!IsValid(Effect.Value)) continue;
 		if(Effect.Value->EffectData.EffectTag.IsValid() && Effect.Value->EffectData.EffectTag.MatchesTagExact(InEffectTag)){
 			Count++;
 		}
@@ -3802,6 +3809,7 @@ FString UGMC_AbilitySystemComponent::GetActiveEffectsDataString() const{
 FString UGMC_AbilitySystemComponent::GetActiveEffectsString() const{
 	FString FinalString = FString::Printf(TEXT("%d total\n"), ActiveEffects.Num());
 	for(const TTuple<int, UGMCAbilityEffect*> ActiveEffect : ActiveEffects){
+		if(!IsValid(ActiveEffect.Value)) continue;
 		FinalString += ActiveEffect.Value->ToString() + TEXT("\n");
 	}
 	return FinalString;
