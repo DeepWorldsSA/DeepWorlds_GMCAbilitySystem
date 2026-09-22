@@ -286,6 +286,19 @@ void UGMCAbility::RemoveAbilityCost() {
 	}
 }
 
+TMap<FGameplayTag, float> UGMCAbility::GetAbilityCostValues() const
+{
+	TMap<FGameplayTag, float> CostMap;
+	if (!AbilityCost) return CostMap;
+
+	const UGMCAbilityEffect* EffectCDO = AbilityCost->GetDefaultObject<UGMCAbilityEffect>();
+    
+	for (const FGMCAttributeModifier& Modifier : EffectCDO->EffectData.Modifiers)
+	{
+		CostMap.Add(Modifier.AttributeTag, Modifier.GetValue()); 
+	}
+	return CostMap;
+}
 
 void UGMCAbility::ModifyBlockOtherAbility(FGameplayTagContainer TagToAdd, FGameplayTagContainer TagToRemove) {
 	for (auto Tag : TagToAdd) {
