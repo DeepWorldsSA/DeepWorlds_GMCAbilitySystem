@@ -2,7 +2,13 @@
 #include "GameplayTagContainer.h"
 #include "InputAction.h"
 #include "Effects/GMCAbilityEffect.h"
-#include "InstancedStruct.h"
+
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 5
+#include "StructUtils/InstancedStruct.h"  // UE 5.5+
+#else
+#include "InstancedStruct.h"              // UE 5.4 and earlier
+#endif
+
 #include "GMASBoundQueueV2_Operations.generated.h"
 
 class UGMCAbility;
