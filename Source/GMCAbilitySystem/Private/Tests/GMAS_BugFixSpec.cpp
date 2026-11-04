@@ -325,6 +325,75 @@ void FGMASBugFixSpec::Define()
 		});
 	});
 
+	// A server never advances GMCMoveCounter, so ClearStaleOperationData never prunes
+	// OperationDataCacheExpiration there. Before the fix every cached operation left one
+	// entry behind forever; now each payload removal takes its entry with it.
+	Describe("Operation cache expiration entries", [this]()
+	{
+		It("a forced server operation leaves no expiration entry behind", [this]()
+		{
+			FGMASBoundQueueV2& Q = AbilityComp->GetBoundQueueV2ForTest();
+			const int32 EntriesBefore = Q.OperationDataCacheExpiration.Num();
+			const int OpID = Q.MakeOperationData(FGMASBoundQueueV2OperationBaseData());
+			TestEqual("caching the op adds one entry", Q.OperationDataCacheExpiration.Num(), EntriesBefore + 1);
+
+			Q.QueueServerOperation(OpID, 0.f);
+			Q.GenAncillaryTick(0.016f);
+
+			TestFalse("payload drained by the force", Q.HasPayloadByID(OpID));
+			TestFalse("grace entry removed by the force", Q.ServerQueuedBoundOperationsGracePeriods.Contains(OpID));
+			TestEqual("its expiration entry left with the payload", Q.OperationDataCacheExpiration.Num(), EntriesBefore);
+		});
+
+		It("an acknowledged server operation leaves no expiration entry behind", [this]()
+		{
+			FGMASBoundQueueV2& Q = AbilityComp->GetBoundQueueV2ForTest();
+			const int32 EntriesBefore = Q.OperationDataCacheExpiration.Num();
+			const int OpID = Q.MakeOperationData(FGMASBoundQueueV2OperationBaseData());
+
+			Q.QueueServerOperation(OpID);
+			Q.ServerAcknowledgeOperation(OpID);
+
+			TestFalse("payload removed by the ack", Q.HasPayloadByID(OpID));
+			TestFalse("grace entry removed by the ack", Q.ServerQueuedBoundOperationsGracePeriods.Contains(OpID));
+			TestEqual("its expiration entry left with the payload", Q.OperationDataCacheExpiration.Num(), EntriesBefore);
+		});
+
+		It("RemovePayloadByID drops the entry and re-caching an id keeps a single entry", [this]()
+		{
+			FGMASBoundQueueV2& Q = AbilityComp->GetBoundQueueV2ForTest();
+			const int32 EntriesBefore = Q.OperationDataCacheExpiration.Num();
+			const FInstancedStruct Payload = FInstancedStruct::Make(FGMASBoundQueueV2OperationBaseData());
+
+			Q.CacheOperationPayload(792, Payload);
+			Q.CacheOperationPayload(792, Payload);
+			TestEqual("one entry per id", Q.OperationDataCacheExpiration.Num(), EntriesBefore + 1);
+
+			Q.RemovePayloadByID(792);
+			TestFalse("payload removed", Q.HasPayloadByID(792));
+			TestEqual("entry removed with it", Q.OperationDataCacheExpiration.Num(), EntriesBefore);
+		});
+
+		It("ClearStaleOperationData drops an orphaned entry instead of warning on every tick", [this]()
+		{
+			FGMASBoundQueueV2& Q = AbilityComp->GetBoundQueueV2ForTest();
+			if (!TestNotNull("bound to a movement component", Q.GMCMovementComponent)) { return; }
+
+			// Exactly one occurrence: the second pass below must not warn again.
+			AddExpectedMessagePlain(TEXT("OperationID 793 not found in OperationPayloads, but still in cache expiration map"),
+				ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+
+			Q.OperationDataCacheExpiration.Add({793, Q.GMCMoveCounter});   // an entry whose payload is already gone
+			Q.GMCMoveCounter += Q.GMCMovementComponent->MoveHistoryMaxSize + 1;
+
+			Q.ClearStaleOperationData();
+			Q.ClearStaleOperationData();
+
+			TestFalse("orphaned entry removed",
+				Q.OperationDataCacheExpiration.ContainsByPredicate([](const FOperationDataCacheExpiration& Entry) { return Entry.OperationID == 793; }));
+		});
+	});
+
 	// ── Bug #5: ProcessedEffectIDs never trimmed ──────────────────────────
 	// Before fix: ProcessedEffectIDs grew unboundedly — entries added at
 	// effect creation but never removed on expiry.
